@@ -406,16 +406,19 @@ with tab1:
 
 with tab2:
     # ── Bank reference table ──────────────────────────────────────────────
+    # Note: we used to show a "Promo Rate" / "Max Term" column here, but
+    # banks publish multiple rate tiers (fixed 1/2/3/5 yr + floating) that
+    # change monthly. Storing one number per bank is misleading. If/when
+    # we want live rate intel, the right approach is parsing % values out
+    # of the scraped article titles per bank, not hard-coding in banks.yaml.
     with st.expander("📚 Bank Reference — Home Loan Products in Vietnam", expanded=False):
         ref_rows = []
         TYPE_LABEL = {"state_owned": "🏛️ State", "private": "🏢 Private", "foreign": "🌏 Foreign"}
         for short_name, info in banks.items():
             ref_rows.append({
-                "Bank":       short_name,
-                "Type":       TYPE_LABEL.get(info["type"], info["type"]),
-                "Promo Rate": info.get("promo_rate", "—"),
-                "Max Term":   f"{info.get('max_term_yrs','—')} yrs",
-                "Notes":      (info.get("notes") or "").strip()[:120],
+                "Bank":  short_name,
+                "Type":  TYPE_LABEL.get(info["type"], info["type"]),
+                "Notes": (info.get("notes") or "").strip()[:160],
             })
         st.dataframe(pd.DataFrame(ref_rows).set_index("Bank"),
                      use_container_width=True, height=420)
@@ -498,8 +501,7 @@ with tab2:
 
         # Articles by bank
         st.subheader("Articles by Bank")
-        sel_bank = st.selectbox("Select bank", sorted(bdf["bank"].unique()),
-                                format_func=lambda b: f"{b} ({banks.get(b,{}).get('promo_rate','')})  ")
+        sel_bank = st.selectbox("Select bank", sorted(bdf["bank"].unique()))
         bank_articles = bdf[bdf["bank"] == sel_bank].sort_values("date", ascending=False)
         for _, r in bank_articles.iterrows():
             sent_bg = SENT_COLOR.get(r["sentiment"], "#95a5a6")
