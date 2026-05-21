@@ -14,16 +14,12 @@ news_sites:
     url: "https://cafef.vn/bat-dong-san.chn"
   - name: VnExpress
     url: "https://vnexpress.net/bat-dong-san"
-  # Banking sections — catches loan rate announcements
-  - name: CafeF_Banking
-    url: "https://cafef.vn/tai-chinh-ngan-hang.chn"
+  # Banking section — sparse on home-loan-specific content (1 article over 9 days),
+  # kept because rate announcements occasionally surface here.
   - name: VnExpress_Banking
     url: "https://vnexpress.net/kinh-doanh/ngan-hang"
-  # Additional sources
   - name: CafeLand
     url: "https://cafeland.vn/tin-tuc/"
-  - name: VnEconomy
-    url: "https://vneconomy.vn/dia-oc.htm"
   - name: VietnamNet
     url: "https://vietnamnet.vn/bat-dong-san"
   - name: DanTri
@@ -31,17 +27,25 @@ news_sites:
   - name: TuoiTre
     url: "https://tuoitre.vn/bat-dong-san.htm"
 
+  # ── Removed 2026-05-21 — see scrape audit, all produced 0 articles ──────
+  # - name: CafeF_Banking        # banking-as-industry, not home-loan focused
+  #   url: "https://cafef.vn/tai-chinh-ngan-hang.chn"
+  # - name: VnEconomy            # parser broken — site markup non-standard
+  #   url: "https://vneconomy.vn/dia-oc.htm"
+  # - name: BatDongSan           # Next.js, needs Firecrawl to render JS feed
+  #   url: "https://batdongsan.com.vn"
+
 forums:
   # OTOFUN — XenForo community, highest traffic for home loan discussion in VN
   - name: OTOFUN_RealEstate
     url: "https://www.otofun.net/forums/cho-bat-dong-san.423/"
   - name: OTOFUN_Construction
     url: "https://www.otofun.net/forums/xay-dung-bat-dong-san.284/"
-  - name: OTOFUN_Cafe
-    url: "https://www.otofun.net/forums/quan-cafe-otofun.77/"
-  # 6Giay — real estate news and community discussion
-  - name: 6Giay
-    url: "https://6giay.vn/tin-nha-dat"
-  # VOZ — blocked (403), kept for future retry
-  # - name: VOZ
+
+  # ── Removed 2026-05-21 — see scrape audit ───────────────────────────────
+  # - name: OTOFUN_Cafe          # off-topic "café" section, 2 articles, mostly noise
+  #   url: "https://www.otofun.net/forums/quan-cafe-otofun.77/"
+  # - name: 6Giay                # 0 articles — parser broken or page structure changed
+  #   url: "https://6giay.vn/tin-nha-dat"
+  # - name: VOZ                  # blocked (403), kept for future retry
   #   url: "https://voz.vn/f/nha-va-cuoc-song.296/"
