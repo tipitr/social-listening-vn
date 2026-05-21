@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Bash(python3 *)",
+      "Bash(pip3 show *)",
+      "Bash(pkill -f \"pipeline.categorizer\")",
+      "Bash(/Users/tipit/Library/Python/3.9/bin/streamlit run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
+      "WebSearch",
+      "Bash(pkill -f \"streamlit run\")",
+      "Bash(curl -s http://localhost:8501)",
+      "Bash(python -m pipeline.collector)",
+      "Bash(sqlite3 /Users/tipit/Desktop/social-listening-vn/data/social_listening.db \"SELECT MAX\\(scraped_at\\) FROM posts;\")",
+      "Bash(sqlite3 /Users/tipit/Desktop/social-listening-vn/data/social_listening.db \"SELECT MAX\\(scraped_at\\) FROM articles;\")",
+      "Bash(kill 68131)",
+      "Bash(python3.11 -m pipeline.scheduler >> data/scheduler.log 2>&1 &)",
+      "Bash(find /usr/local /opt /Users/tipit -name \"python3*\" -type f 2>/dev/null | grep -v \"__pycache__\" | head -10)",
+      "Read(//usr/local/**)",
+      "Bash(/Users/tipit/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11 -m pipeline.scheduler)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(python3 -c \"import yaml; import apscheduler; print\\('OK'\\)\" 2>/dev/null && python3 -m pipeline.scheduler >> data/scheduler.log 2>&1 & *)",
+      "Bash(python3 main.py >> data/scheduler.log 2>&1 & *)",
+      "Bash(curl -s http://localhost:8501/_stcore/health)",
+      "Bash(curl -s http://localhost:8501/_stcore/host-config)",
+      "Bash(kill 2376)",
+      "Bash(xargs -I {} kill -9 {})",
+      "Bash(curl -fs http://localhost:8501/_stcore/health)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -o /dev/null http://localhost:8501/)",
+      "Bash(open /Users/tipit/Desktop/social-listening-vn/DEPLOYMENT.html)"
+    ],
+    "additionalDirectories": [
+      "/Users/tipit/Desktop/social-listening-vn/data"
+    ]
+  }
+}

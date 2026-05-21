@@ -1,0 +1,128 @@
+home_loan:
+  # Core — every term explicitly contains a property/housing word
+  vietnamese:
+    - vay mua nhà
+    - vay nhà
+    - mua nhà
+    - vay mua căn hộ
+    - vay căn hộ
+    - vay mua chung cư
+    - vay mua nhà đất
+    - vay mua bất động sản
+    - cho vay mua nhà
+    - cho vay bất động sản
+    - mua nhà trả góp
+    - vay thế chấp nhà
+    - vay thế chấp bất động sản
+    - thế chấp sổ đỏ
+    - thế chấp nhà ở
+
+  # Interest rate — only terms tied to property lending
+  interest_rate:
+    - lãi suất vay mua nhà
+    - lãi suất vay nhà
+    - lãi suất mua nhà
+    - lãi suất thế chấp
+    - lãi suất vay bất động sản
+    - lãi suất ưu đãi mua nhà
+    - lãi suất cố định mua nhà
+    - lãi suất thả nổi mua nhà
+
+  # Credit & process — scoped to housing
+  credit:
+    - tín dụng bất động sản
+    - hồ sơ vay mua nhà
+    - điều kiện vay mua nhà
+    - thủ tục vay mua nhà
+    - xét duyệt vay mua nhà
+    - giải ngân vay nhà
+    - trả nợ vay nhà
+    - dư nợ vay mua nhà
+
+  # Promotions — scoped to property
+  promotions:
+    - ưu đãi vay mua nhà
+    - gói vay ưu đãi mua nhà
+    - khuyến mãi vay mua nhà
+    - vay mua nhà lãi suất thấp
+    - cố định lãi suất vay nhà
+    - hỗ trợ lãi suất mua nhà
+
+  # Forum-specific short terms — forum thread titles use abbreviated phrases
+  # not used by news scraper; only loaded by forums.py
+  forum_keywords:
+    - mua nhà
+    - bán nhà
+    - lãi suất
+    - căn hộ
+    - chung cư
+    - hỗ trợ lãi suất
+    - thế chấp
+    - sổ đỏ
+    - sổ hồng
+    - vay nhà
+    - vay mua nhà
+    - mua căn hộ
+    - giá nhà
+    - mua chung cư
+
+  # Banks — full list synced from config/banks.yaml
+  # NOT used for article matching; used by dashboard competitor intel
+  banks:
+    - Vietcombank
+    - BIDV
+    - Agribank
+    - VietinBank
+    - Techcombank
+    - VPBank
+    - MBBank
+    - HDBank
+    - ACB
+    - SHB
+    - VIB
+    - TPBank
+    - Sacombank
+    - SeABank
+    - OCB
+    - Eximbank
+    - PVcomBank
+    - LPBank
+    - BVBank
+    - HSBC
+    - Shinhan
+    - Hong Leong Bank
+    - Standard Chartered
+    - UOB
+    - Kasikorn Bank
+
+  # Negative filter — exclude unrelated content
+  negative_filter:
+    # Property project / developer marketing (not home loan content)
+    - mở bán dự án
+    - ra mắt dự án
+    - giới thiệu dự án
+    - tiến độ dự án
+    - bàn giao dự án
+    - chủ đầu tư
+    - đầu tư bất động sản
+    - vay tiêu dùng
+    - vay mua xe
+    - vay du học
+    - vay kinh doanh
+    - vay vốn lưu động
+    - vay thẻ tín dụng
+    - vay online
+    - vay nhanh
+    - vay nóng
+    - cho vay ngang hàng
+    - vay cá nhân
+    - vay tín chấp tiêu dùng
+    - lãi suất tiết kiệm
+    - lãi suất huy động
+    - tiềm lực tài chính
+    - chuyển đổi số
+    - nhà ở xã hội
+    - nhà ở thu nhập thấp
+    - gói vay 4.6%
+    - gói vay nhà ở xã hội
+    - giải ngân nhà ở xã hội

@@ -1,0 +1,48 @@
+name: Daily Scrape
+
+on:
+  # 00:00 UTC = 07:00 in Vietnam (GMT+7). Adjust the cron if you want a
+  # different time — keep in mind it's UTC, not local.
+  schedule:
+    - cron: "0 0 * * *"
+
+  # Lets someone trigger a manual run from the Actions tab if a day's
+  # collection was missed.
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scrape + categorize
+        env:
+          # Database — Supabase connection string (Settings → Database)
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+          # Claude — required for categorization and weekly report
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Firecrawl — optional, enables JS-rendered site scraping
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+
+          # Facebook Graph API — optional, enables FB page monitoring
+          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          FACEBOOK_APP_ID:       ${{ secrets.FACEBOOK_APP_ID }}
+          FACEBOOK_APP_SECRET:   ${{ secrets.FACEBOOK_APP_SECRET }}
+        run: python main.py

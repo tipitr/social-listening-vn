@@ -1,0 +1,18 @@
+schedule:
+  run_times:
+    - "10:00"
+    - "17:00"
+  timezone: "Asia/Ho_Chi_Minh"
+
+scraping:
+  delay_between_requests: 2
+  max_pages_per_forum: 5
+  max_posts_per_page: 20
+
+categorizer:
+  batch_size: 20
+  min_content_length: 20
+
+dashboard:
+  posts_per_page: 50
+  default_date_range: 7

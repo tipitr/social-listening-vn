@@ -1,0 +1,7 @@
+[server]
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+serverAddress = "vowel-strongman-relearn.ngrok-free.dev"
+serverPort = 443

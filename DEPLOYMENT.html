@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deployment Guide — Social Listening VN</title>
+<style>
+  :root {
+    --bg: #fafaf7; --card: #fff; --text: #1a1a1a; --muted: #666;
+    --accent: #2563eb; --accent-bg: #eff6ff; --code-bg: #f4f4f2;
+    --border: #e5e5e0; --warn-bg: #fff7ed; --warn-bd: #fb923c;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          background: var(--bg); color: var(--text); line-height: 1.65; margin: 0; }
+  .layout { display: grid; grid-template-columns: 240px 1fr;
+             max-width: 1200px; margin: 0 auto; gap: 32px; padding: 32px 24px; }
+  nav.toc { position: sticky; top: 24px; align-self: start;
+             background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+             padding: 16px 18px; font-size: 14px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  nav.toc strong { display: block; font-size: 12px; text-transform: uppercase;
+                    letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+  nav.toc ul { list-style: none; padding-left: 0; margin: 0; }
+  nav.toc ul ul { padding-left: 14px; margin-top: 4px; }
+  nav.toc li { margin: 6px 0; }
+  nav.toc a { color: var(--text); text-decoration: none; display: block;
+               padding: 2px 6px; border-radius: 4px; }
+  nav.toc a:hover { background: var(--accent-bg); color: var(--accent); }
+  main { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+          padding: 36px 48px; max-width: 820px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; padding-bottom: 8px;
+        border-bottom: 2px solid var(--accent-bg); position: relative; }
+  h2:first-of-type { margin-top: 24px; }
+  h2 .headerlink { display: none; }
+  h3 { font-size: 17px; margin: 28px 0 10px; }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px;
+         overflow-x: auto; font-size: 13.5px; line-height: 1.55; }
+  pre code { background: transparent; padding: 0; }
+  blockquote { background: var(--warn-bg); border-left: 4px solid var(--warn-bd);
+                margin: 18px 0; padding: 12px 18px; border-radius: 4px; color: #5a4a3a; }
+  blockquote p { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: var(--accent-bg); font-weight: 600; }
+  tr:nth-child(even) td { background: #fafafa; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  input[type="checkbox"] { margin-right: 6px; transform: translateY(2px); }
+  .step-chip { display: inline-block; background: var(--accent); color: white;
+                width: 28px; height: 28px; line-height: 28px; text-align: center;
+                border-radius: 50%; font-size: 14px; font-weight: 700;
+                margin-right: 12px; vertical-align: middle; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 24px; }
+  }
+  @media print {
+    nav.toc { display: none; }
+    .layout { display: block; padding: 0; }
+    main { border: none; padding: 0; max-width: none; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <strong>Contents</strong>
+    <div class="toc">
+<ul>
+<li><a href="#step-1-push-the-code-to-github">Step 1 — Push the code to GitHub</a></li>
+<li><a href="#step-2-create-a-supabase-project-the-database">Step 2 — Create a Supabase project (the database)</a></li>
+<li><a href="#step-3-copy-the-existing-data-over-optional-but-recommended">Step 3 — Copy the existing data over (optional but recommended)</a></li>
+<li><a href="#step-4-add-secrets-to-github-actions">Step 4 — Add secrets to GitHub Actions</a></li>
+<li><a href="#step-5-deploy-the-dashboard-on-streamlit-cloud">Step 5 — Deploy the dashboard on Streamlit Cloud</a></li>
+<li><a href="#what-the-team-needs-to-know">What the team needs to know</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#local-development-after-deploy">Local development (after deploy)</a></li>
+<li><a href="#what-you-control-admin-checklist">What you control (admin checklist)</a></li>
+</ul>
+</div>
+
+  </nav>
+  <main>
+    <h1 id="deployment-guide-social-listening-vn"><a class="toclink" href="#deployment-guide-social-listening-vn">Deployment Guide — Social Listening VN</a></h1>
+<p>This is a one-time setup. After it's done, the team can use the dashboard<br />
+forever and never touch this file again.</p>
+<p><strong>Total time:</strong> about 1 hour, mostly waiting for sign-ups.</p>
+<p><strong>You'll create accounts on three services (all free for our usage):</strong></p>
+<ol>
+<li><strong>Supabase</strong> — hosts the database</li>
+<li><strong>GitHub</strong> — hosts the code and runs the daily scrape</li>
+<li><strong>Streamlit Cloud</strong> — hosts the dashboard the team opens in their browser</li>
+</ol>
+<hr />
+<h2 id="step-1-push-the-code-to-github"><a class="toclink" href="#step-1-push-the-code-to-github">Step 1 — Push the code to GitHub</a></h2>
+<p>If the project isn't already on GitHub:</p>
+<pre><code class="language-bash">cd /path/to/social-listening-vn
+git init
+git add .
+git commit -m &quot;Initial commit&quot;
+</code></pre>
+<p>Then on https://github.com → <strong>New repository</strong> → name it <code>social-listening-vn</code><br />
+(private is fine) → follow the "push existing repo" instructions GitHub shows.</p>
+<blockquote>
+<p><strong>Don't worry about secrets leaking.</strong> <code>.gitignore</code> already excludes <code>.env</code>,<br />
+<code>data/</code>, and <code>.streamlit/secrets.toml</code> — none of your keys go up.</p>
+</blockquote>
+<hr />
+<h2 id="step-2-create-a-supabase-project-the-database"><a class="toclink" href="#step-2-create-a-supabase-project-the-database">Step 2 — Create a Supabase project (the database)</a></h2>
+<ol>
+<li>Sign up at https://supabase.com (free tier is enough)</li>
+<li><strong>New project</strong> → pick a name → choose a strong DB password → region<br />
+<strong>Southeast Asia (Singapore)</strong> for lowest latency from Vietnam → Create</li>
+<li>Wait ~2 minutes for the project to provision</li>
+<li>On the project's main dashboard page, click the <strong>Connect</strong> button at the<br />
+   top of the page. A modal opens with connection options.</li>
+<li>Choose the <strong>Transaction pooler</strong> tab (NOT "Direct connection" — pooler<br />
+   works better for GitHub Actions and Streamlit Cloud, which spin up<br />
+   short-lived processes).</li>
+<li>Copy the URI. It looks like:<br />
+<code>postgresql://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres</code></li>
+<li><strong>Replace <code>[YOUR-PASSWORD]</code></strong> with the database password you set in step 2.<br />
+   If you forgot it, reset it on the same page.</li>
+<li><strong>Save this string somewhere safe — you'll paste it into GitHub and Streamlit Cloud.</strong></li>
+</ol>
+<blockquote>
+<p>Can't see the Connect button? Alternate path: left sidebar → <strong>⚙️ Project<br />
+Settings → Database → Connection string</strong>. Same info, just hidden in settings.</p>
+<p>⚠️ The free tier pauses if the project sees zero activity for 7 days.<br />
+Our daily GitHub Actions cron prevents that. If you ever stop the cron,<br />
+the project will pause and the team will see errors until you un-pause it.</p>
+</blockquote>
+<hr />
+<h2 id="step-3-copy-the-existing-data-over-optional-but-recommended"><a class="toclink" href="#step-3-copy-the-existing-data-over-optional-but-recommended">Step 3 — Copy the existing data over (optional but recommended)</a></h2>
+<p>If you have local SQLite data you want to preserve:</p>
+<pre><code class="language-bash">export DATABASE_URL='postgresql://postgres.xxxxx:PASSWORD@host:6543/postgres'
+pip install -r requirements.txt
+python scripts/migrate_sqlite_to_postgres.py
+</code></pre>
+<p>You'll see something like:</p>
+<pre><code>✓ articles  : 1,234 new (skipped 0 dupes)
+✓ usage_log : 87 inserted
+Migration complete.
+</code></pre>
+<p>Safe to re-run — it skips anything already in Postgres.</p>
+<p>If you'd rather start fresh, skip this step. The first GitHub Actions cron<br />
+run will populate the new database from scratch.</p>
+<hr />
+<h2 id="step-4-add-secrets-to-github-actions"><a class="toclink" href="#step-4-add-secrets-to-github-actions">Step 4 — Add secrets to GitHub Actions</a></h2>
+<p>This is what makes the daily scrape run automatically.</p>
+<p>On your GitHub repo: <strong>Settings → Secrets and variables → Actions → New repository secret</strong></p>
+<p>Add each of these:</p>
+<table>
+<thead>
+<tr>
+<th>Secret name</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DATABASE_URL</code></td>
+<td>The Supabase connection string from Step 2</td>
+</tr>
+<tr>
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td>Your Claude API key (<code>sk-ant-...</code>)</td>
+</tr>
+<tr>
+<td><code>FIRECRAWL_API_KEY</code></td>
+<td>Your Firecrawl key (optional but recommended)</td>
+</tr>
+<tr>
+<td><code>FACEBOOK_ACCESS_TOKEN</code></td>
+<td>Long-lived Page token (optional, only if doing FB scraping)</td>
+</tr>
+<tr>
+<td><code>FACEBOOK_APP_ID</code></td>
+<td>Optional alternate to access token</td>
+</tr>
+<tr>
+<td><code>FACEBOOK_APP_SECRET</code></td>
+<td>Optional alternate to access token</td>
+</tr>
+</tbody>
+</table>
+<p>Once added, go to the <strong>Actions</strong> tab → "Daily Scrape" workflow → click<br />
+<strong>Run workflow</strong> to test it manually. Should finish green in 2–5 minutes.</p>
+<p>After that, it runs automatically every day at <strong>07:00 GMT+7</strong> (00:00 UTC).<br />
+To change the schedule, edit the <code>cron:</code> line in <code>.github/workflows/daily_scrape.yml</code>.</p>
+<hr />
+<h2 id="step-5-deploy-the-dashboard-on-streamlit-cloud"><a class="toclink" href="#step-5-deploy-the-dashboard-on-streamlit-cloud">Step 5 — Deploy the dashboard on Streamlit Cloud</a></h2>
+<ol>
+<li>Sign up at https://share.streamlit.io with your GitHub account</li>
+<li><strong>New app</strong> → select the repo → main file: <code>dashboard/app.py</code> → branch: <code>main</code></li>
+<li>Click <strong>Advanced settings</strong> → <strong>Secrets</strong> → paste this (with real values):</li>
+</ol>
+<pre><code class="language-toml">[env]
+DATABASE_URL = &quot;postgresql://postgres.xxxxx:PASSWORD@host:6543/postgres&quot;
+ANTHROPIC_API_KEY = &quot;sk-ant-...&quot;
+FIRECRAWL_API_KEY = &quot;fc-...&quot;
+FACEBOOK_ACCESS_TOKEN = &quot;&quot;
+FACEBOOK_APP_ID = &quot;&quot;
+FACEBOOK_APP_SECRET = &quot;&quot;
+</code></pre>
+<blockquote>
+<p>Format mirrors <code>.streamlit/secrets.toml.example</code> in the repo — same keys,<br />
+same values.</p>
+</blockquote>
+<ol start="4">
+<li>Click <strong>Deploy</strong>. First build takes ~3 minutes.</li>
+<li>You'll get a public URL like <code>https://your-app-name.streamlit.app</code></li>
+<li><strong>Settings → Sharing → Viewer access</strong>: set to "Only specific people"<br />
+   and add the team's email addresses, OR keep it public if there's nothing<br />
+   sensitive on the dashboard (everything is already public news).</li>
+</ol>
+<p>The dashboard now reads from Supabase. Every time GitHub Actions runs the<br />
+daily scrape, fresh data lands in Supabase and the dashboard updates<br />
+(refresh the page or wait 60 seconds for the auto-refresh).</p>
+<hr />
+<h2 id="what-the-team-needs-to-know"><a class="toclink" href="#what-the-team-needs-to-know">What the team needs to know</a></h2>
+<p>Send them this note:</p>
+<blockquote>
+<p><strong>Home Loan Intel dashboard:</strong> <code>https://your-app-name.streamlit.app</code></p>
+<p>Updated every morning around 7 AM. Refresh the page to see the latest.</p>
+<p>If it shows an error or stops updating for more than 2 days, contact<br />
+[your replacement or IT contact] — there's a deployment guide in the repo.</p>
+</blockquote>
+<hr />
+<h2 id="troubleshooting"><a class="toclink" href="#troubleshooting">Troubleshooting</a></h2>
+<p><strong>"DATABASE_URL must be set" when running locally</strong><br />
+You don't need it locally — without it, the code falls back to the SQLite<br />
+file at <code>data/social_listening.db</code>. Only set <code>DATABASE_URL</code> when you want<br />
+to talk to Supabase.</p>
+<p><strong>Dashboard shows "No articles match" after deploy</strong><br />
+The Supabase tables exist but are empty — wait for the first GitHub Actions<br />
+run, or trigger one manually from the Actions tab.</p>
+<p><strong>GitHub Action fails on <code>ModuleNotFoundError</code></strong><br />
+Check <code>requirements.txt</code> is committed and the workflow's Python version<br />
+(currently 3.11) is compatible with all packages.</p>
+<p><strong>Supabase project paused itself</strong><br />
+Visit your Supabase project dashboard → click "Restore" / "Unpause".<br />
+This shouldn't happen as long as the daily cron runs.</p>
+<p><strong>Insight report (Tab 4) costs too much</strong><br />
+The "Generate Report" button calls Claude Opus, which is expensive<br />
+(~$0.05–0.20 per report). The Cost Tracker tab shows exactly what each<br />
+call cost. To restrict access, make the Streamlit Cloud app private<br />
+(Step 5 → Sharing).</p>
+<hr />
+<h2 id="local-development-after-deploy"><a class="toclink" href="#local-development-after-deploy">Local development (after deploy)</a></h2>
+<p>To keep developing locally without touching production data:</p>
+<pre><code class="language-bash">unset DATABASE_URL          # falls back to local SQLite
+streamlit run dashboard/app.py
+</code></pre>
+<p>To test against production data:</p>
+<pre><code class="language-bash">export DATABASE_URL='postgresql://...'   # the Supabase URL
+streamlit run dashboard/app.py
+</code></pre>
+<p>The dashboard and scrapers work identically against either backend.</p>
+<hr />
+<h2 id="what-you-control-admin-checklist"><a class="toclink" href="#what-you-control-admin-checklist">What you control (admin checklist)</a></h2>
+<p>Before handing off, make sure someone on the team has:</p>
+<ul>
+<li><input type="checkbox" disabled> Admin access to the GitHub repo</li>
+<li><input type="checkbox" disabled> Owner access to the Supabase project (Settings → Team)</li>
+<li><input type="checkbox" disabled> Owner access to the Streamlit Cloud app</li>
+<li><input type="checkbox" disabled> The Anthropic API key (or a separate company key on the same billing)</li>
+<li><input type="checkbox" disabled> The Firecrawl key (if used)</li>
+<li><input type="checkbox" disabled> Read access to the Facebook page tokens (if used)</li>
+</ul>
+<p>If only one person has these and they leave, the whole thing dies.<br />
+Always grant access to at least two people.</p>
+  </main>
+</div>
+<script>
+  document.querySelectorAll('h2').forEach(h => {
+    const m = h.textContent.match(/^Step (\d+)/);
+    if (m) {
+      const chip = document.createElement('span');
+      chip.className = 'step-chip';
+      chip.textContent = m[1];
+      h.firstChild.textContent = h.firstChild.textContent.replace(/^Step \d+\s*—\s*/, '');
+      h.prepend(chip);
+    }
+  });
+</script>
+</body>
+</html>

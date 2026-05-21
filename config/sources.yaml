@@ -1,0 +1,47 @@
+facebook_pages:
+  - name: Vietcombank
+    page_id: "Vietcombank"
+  - name: Techcombank
+    page_id: "Techcombank"
+  - name: VPBank
+    page_id: "VPBankOfficial"
+  - name: MBBank
+    page_id: "mbbank"
+
+news_sites:
+  # Real estate sections — highest density of home loan content
+  - name: CafeF
+    url: "https://cafef.vn/bat-dong-san.chn"
+  - name: VnExpress
+    url: "https://vnexpress.net/bat-dong-san"
+  # Banking sections — catches loan rate announcements
+  - name: CafeF_Banking
+    url: "https://cafef.vn/tai-chinh-ngan-hang.chn"
+  - name: VnExpress_Banking
+    url: "https://vnexpress.net/kinh-doanh/ngan-hang"
+  # Additional sources
+  - name: CafeLand
+    url: "https://cafeland.vn/tin-tuc/"
+  - name: VnEconomy
+    url: "https://vneconomy.vn/dia-oc.htm"
+  - name: VietnamNet
+    url: "https://vietnamnet.vn/bat-dong-san"
+  - name: DanTri
+    url: "https://dantri.com.vn/bat-dong-san.htm"
+  - name: TuoiTre
+    url: "https://tuoitre.vn/bat-dong-san.htm"
+
+forums:
+  # OTOFUN — XenForo community, highest traffic for home loan discussion in VN
+  - name: OTOFUN_RealEstate
+    url: "https://www.otofun.net/forums/cho-bat-dong-san.423/"
+  - name: OTOFUN_Construction
+    url: "https://www.otofun.net/forums/xay-dung-bat-dong-san.284/"
+  - name: OTOFUN_Cafe
+    url: "https://www.otofun.net/forums/quan-cafe-otofun.77/"
+  # 6Giay — real estate news and community discussion
+  - name: 6Giay
+    url: "https://6giay.vn/tin-nha-dat"
+  # VOZ — blocked (403), kept for future retry
+  # - name: VOZ
+  #   url: "https://voz.vn/f/nha-va-cuoc-song.296/"

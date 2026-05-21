@@ -1,0 +1,446 @@
+# Vietnamese Banks Offering Home Loan Products
+# Last updated: May 2026
+# Sources: topi.vn, cafeland.vn, bankexpress.vn, individual bank websites
+#
+# Fields:
+#   name_vi       — official Vietnamese name
+#   name_en       — English name
+#   short_name    — keyword used in news/forum monitoring
+#   type          — state_owned | private | foreign
+#   ownership     — ownership detail
+#   product_name  — official home loan product name
+#   promo_rate    — current advertised promotional rate (fixed period)
+#   promo_period  — duration of promotional rate
+#   floating_rate — floating rate after promo period (approx)
+#   max_ltv       — max loan-to-value ratio (%)
+#   max_term_yrs  — maximum loan term in years
+#   website       — home loan product page
+#   notes         — key differentiators / flags to watch
+
+# ─────────────────────────────────────────────────
+# STATE-OWNED BANKS (Big 4) — largest market share
+# ─────────────────────────────────────────────────
+
+state_owned:
+
+  - name_vi: Ngân hàng TMCP Ngoại thương Việt Nam
+    name_en: Bank for Foreign Trade of Vietnam
+    short_name: Vietcombank
+    aliases: [VCB, Vietcombank]
+    type: state_owned
+    ownership: State owns 74.8%
+    product_name: Vay mua nhà / đất ở
+    promo_rate: "9.6%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~13.9%/year (24-month fixed)"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.vietcombank.com.vn/en/Personal/SPDV/Vay/Vay-mua-nha-dat"
+    notes: >
+      Most trusted brand in Vietnam. Premium segment customers.
+      Strict income documentation. Monitor for rate change announcements.
+
+  - name_vi: Ngân hàng TMCP Đầu tư và Phát triển Việt Nam
+    name_en: Bank for Investment and Development of Vietnam
+    short_name: BIDV
+    aliases: [BIDV]
+    type: state_owned
+    ownership: State owns 80.9%
+    product_name: Vay nhu cầu nhà ở
+    promo_rate: "9.7%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~13.5%/year (18-month fixed)"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://bidv.com.vn/vn/ca-nhan/san-pham-dich-vu/vay-ca-nhan/vay-nhu-cau-nha-o"
+    notes: >
+      Strong branch network in provinces. Often bundles with BIDV insurance.
+      Watch for "Gói vay nhà ở" campaign announcements.
+
+  - name_vi: Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam
+    name_en: Vietnam Bank for Agriculture and Rural Development
+    short_name: Agribank
+    aliases: [Agribank, NHNo]
+    type: state_owned
+    ownership: State owns 100%
+    product_name: Cho vay trung dài hạn mua nhà ở
+    promo_rate: "8.0%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~9.8%/year (18-month fixed)"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.agribank.com.vn"
+    notes: >
+      Largest branch network in Vietnam, dominant in rural/tier-2 cities.
+      Lowest rates among Big 4. Key audience: first-time buyers outside HCMC/Hanoi.
+
+  - name_vi: Ngân hàng TMCP Công Thương Việt Nam
+    name_en: Vietnam Joint Stock Commercial Bank for Industry and Trade
+    short_name: VietinBank
+    aliases: [VietinBank, CTG]
+    type: state_owned
+    ownership: State owns 64.5%
+    product_name: Cho vay mua nhà ở, đất ở
+    promo_rate: "9.5%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~12.5%/year (24-month fixed)"
+    max_ltv: 75
+    max_term_yrs: 25
+    website: "https://www.vietinbank.vn"
+    notes: >
+      Strong corporate client base. Watch for employee home loan packages
+      tied to corporate payroll accounts.
+
+# ─────────────────────────────────────────────────
+# MAJOR PRIVATE BANKS
+# ─────────────────────────────────────────────────
+
+private:
+
+  - name_vi: Ngân hàng TMCP Kỹ thương Việt Nam
+    name_en: Vietnam Technological and Commercial Joint Stock Bank
+    short_name: Techcombank
+    aliases: [Techcombank, TCB]
+    type: private
+    product_name: Vay mua nhà Techcombank
+    promo_rate: "3.99%/year"
+    promo_period: "First 12 months (promotional)"
+    floating_rate: "~10–11%/year after promo"
+    max_ltv: 85
+    max_term_yrs: 35
+    website: "https://techcombank.com/en/personal/borrow/home-loan"
+    notes: >
+      Most aggressive promotions. Highest LTV (85%) in the market.
+      Targets salaried professionals and Vinhomes buyers.
+      Strong digital onboarding. Key competitor to watch.
+
+  - name_vi: Ngân hàng TMCP Việt Nam Thịnh Vượng
+    name_en: Vietnam Prosperity Joint-Stock Commercial Bank
+    short_name: VPBank
+    aliases: [VPBank, VPB]
+    type: private
+    product_name: Vay mua nhà VPBank
+    promo_rate: "5.9%/year"
+    promo_period: "First 6 months"
+    floating_rate: "Reference rate + 3%/year margin"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.vpbank.com.vn/en/personal/loan/home-loan"
+    notes: >
+      Strong in mass-market segment. FE Credit parent — broad reach.
+      Frequent campaigns targeting young buyers aged 25–40.
+
+  - name_vi: Ngân hàng TMCP Quân đội
+    name_en: Military Commercial Joint Stock Bank
+    short_name: MBBank
+    aliases: [MBBank, MB, Military Bank]
+    type: private
+    product_name: Cho vay mua nhà MB
+    promo_rate: "8.5%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~9.5%/year (24-month fixed)"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.mbbank.com.vn"
+    notes: >
+      Growing retail presence. Strong mobile app (MBBank app).
+      Targets military/government employees + general public.
+
+  - name_vi: Ngân hàng TMCP Phát triển TP. Hồ Chí Minh
+    name_en: Ho Chi Minh City Development Joint Stock Commercial Bank
+    short_name: HDBank
+    aliases: [HDBank, HDB]
+    type: private
+    product_name: Vay mua nhà HDBank
+    promo_rate: "6.5%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~11%/year after promo"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://hdbank.com.vn/vi/news/detail/tin-tuc-khac/lai-suat-vay-mua-nha-thap-nhat"
+    notes: >
+      Strong in HCMC and southern provinces. Partners with Vietjet.
+      Focus on mid-market apartment buyers.
+
+  - name_vi: Ngân hàng TMCP Á Châu
+    name_en: Asia Commercial Joint Stock Bank
+    short_name: ACB
+    aliases: [ACB]
+    type: private
+    product_name: Vay mua nhà ACB
+    promo_rate: "9.5%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~10.5%/year"
+    max_ltv: 80
+    max_term_yrs: 25
+    website: "https://www.acb.com.vn"
+    notes: >
+      Premium private bank. Targets high-income and SME-owner segment.
+      Known for quick approval turnaround.
+
+  - name_vi: Ngân hàng TMCP Sài Gòn - Hà Nội
+    name_en: Saigon - Hanoi Commercial Joint Stock Bank
+    short_name: SHB
+    aliases: [SHB]
+    type: private
+    product_name: Vay mua nhà SHB
+    promo_rate: "3.99%/year"
+    promo_period: "First 6 months, up to 90% LTV"
+    floating_rate: "~10%/year after promo"
+    max_ltv: 90
+    max_term_yrs: 35
+    website: "https://www.shb.com.vn"
+    notes: >
+      Highest LTV offers (up to 90%) — aggressive for market share.
+      Watch for promotion announcements targeting first-time buyers.
+
+  - name_vi: Ngân hàng TMCP Quốc tế Việt Nam
+    name_en: Vietnam International Commercial Joint Stock Bank
+    short_name: VIB
+    aliases: [VIB]
+    type: private
+    product_name: Vay mua nhà VIB
+    promo_rate: "9.9%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~12%/year"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.vib.com.vn"
+    notes: >
+      Strong digital-first positioning. Campaigns tied to premium projects
+      (Masterise, Gamuda Land). Mid-to-high income target.
+
+  - name_vi: Ngân hàng TMCP Tiên Phong
+    name_en: Tien Phong Commercial Joint Stock Bank
+    short_name: TPBank
+    aliases: [TPBank, TPB]
+    type: private
+    product_name: Vay mua nhà TPBank
+    promo_rate: "5.0%/year"
+    promo_period: "Promotional — limited time"
+    floating_rate: "~10–11%/year"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://tpb.vn"
+    notes: >
+      Digital-first bank. Youth-oriented campaigns.
+      eBank app integration. Watch "Y-Rise" and young buyer campaigns.
+
+  - name_vi: Ngân hàng TMCP Sài Gòn Thương Tín
+    name_en: Saigon Thuong Tin Commercial Joint Stock Bank
+    short_name: Sacombank
+    aliases: [Sacombank, STB]
+    type: private
+    product_name: Vay mua nhà Sacombank
+    promo_rate: "8.5%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~11%/year"
+    max_ltv: 75
+    max_term_yrs: 30
+    website: "https://www.sacombank.com.vn"
+    notes: >
+      Strong in southern Vietnam. Good branch density in HCMC.
+      Often bundles home loan with Sacombank insurance products.
+
+  - name_vi: Ngân hàng TMCP Đông Nam Á
+    name_en: Southeast Asia Commercial Joint Stock Bank
+    short_name: SeABank
+    aliases: [SeABank, SSB]
+    type: private
+    product_name: Dream Home — Vay mua nhà SeABank
+    promo_rate: "5.8%/year"
+    promo_period: "Featured 'Dream Home' package"
+    floating_rate: "~11%/year"
+    max_ltv: 80
+    max_term_yrs: 55
+    website: "https://www.seabank.com.vn"
+    notes: >
+      Longest term in market (55 years). 5-year principal grace period.
+      Strong product differentiation — monitor for campaign messaging.
+
+  - name_vi: Ngân hàng TMCP Phương Đông
+    name_en: Orient Commercial Joint Stock Bank
+    short_name: OCB
+    aliases: [OCB]
+    type: private
+    product_name: Vay mua nhà OCB
+    promo_rate: "8.0%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~10.5%/year"
+    max_ltv: 75
+    max_term_yrs: 25
+    website: "https://www.ocb.com.vn"
+    notes: >
+      Growing mid-market bank. Partners with Novaland and local developers.
+
+  - name_vi: Ngân hàng TMCP Xuất nhập khẩu Việt Nam
+    name_en: Vietnam Export Import Commercial Joint Stock Bank
+    short_name: Eximbank
+    aliases: [Eximbank, EIB]
+    type: private
+    product_name: Y-Rise Eximbank (vay mua nhà tuổi trẻ)
+    promo_rate: "3.68%/year"
+    promo_period: "First 36 months — age 22–35 only"
+    floating_rate: "~10%/year after promo"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.eximbank.com.vn"
+    notes: >
+      Most competitive rate in market for young buyers (3.68%).
+      Monitor Y-Rise campaign reach and sentiment carefully.
+
+  - name_vi: Ngân hàng TMCP Đại Chúng Việt Nam
+    name_en: Vietnam Public Joint Stock Commercial Bank
+    short_name: PVcomBank
+    aliases: [PVcomBank, PVC]
+    type: private
+    product_name: Vay mua nhà PVcomBank
+    promo_rate: "3.99%/year"
+    promo_period: "First 3 months"
+    floating_rate: "~12%/year"
+    max_ltv: 80
+    max_term_yrs: 30
+    website: "https://www.pvcombank.com.vn/tin-tuc/cam-nang-tai-chinh/vay-mua-nha"
+    notes: >
+      Short promo window (3 months only). Floating rate jumps sharply.
+      Complaints risk high — monitor carefully.
+
+  - name_vi: Ngân hàng TMCP Bưu điện Liên Việt
+    name_en: LienViet Post Bank
+    short_name: LPBank
+    aliases: [LPBank, LienVietPostBank, LVPB]
+    type: private
+    product_name: Vay mua nhà LPBank
+    promo_rate: "7.5%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~11%/year"
+    max_ltv: 75
+    max_term_yrs: 25
+    website: "https://lpbank.com.vn"
+    notes: >
+      Post office network enables reach in rural/tier-3 cities.
+      Growing home loan portfolio since rebranding from LienVietPostBank.
+
+  - name_vi: Ngân hàng TMCP Ngoại thương Á Châu
+    name_en: BVBank
+    short_name: BVBank
+    aliases: [BVBank, Viet Capital Bank]
+    type: private
+    product_name: Vay mua nhà BVBank
+    promo_rate: "8.0%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "~11%/year"
+    max_ltv: 75
+    max_term_yrs: 25
+    website: "https://bvbank.net.vn"
+    notes: Smaller private bank. Limited geographic footprint.
+
+# ─────────────────────────────────────────────────
+# FOREIGN BANKS — lower rates, stricter eligibility
+# ─────────────────────────────────────────────────
+
+foreign:
+
+  - name_vi: Ngân hàng HSBC Việt Nam
+    name_en: HSBC Vietnam
+    short_name: HSBC
+    aliases: [HSBC]
+    type: foreign
+    ownership: "HSBC Holdings (UK) — 100%"
+    product_name: Home Loan / Vay mua nhà HSBC
+    promo_rate: "5.5%/year"
+    promo_period: "6 months fixed"
+    floating_rate: "6.5–7.99%/year (up to 36 months)"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.hsbc.com.vn/en-vn/mortgages/"
+    notes: >
+      Lowest rates in market (5.5–8% vs domestic 10–14%).
+      Strict income/credit requirements — targets expats and high-income Vietnamese.
+      Strong brand trust. Monitor for rate competitiveness vs domestic banks.
+
+  - name_vi: Ngân hàng Shinhan Việt Nam
+    name_en: Shinhan Bank Vietnam
+    short_name: Shinhan
+    aliases: [Shinhan, Shinhan Bank]
+    type: foreign
+    ownership: "Shinhan Financial Group (Korea) — 100%"
+    product_name: Vay mua nhà Shinhan
+    promo_rate: "7.95%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "8.1%/year (36 months fixed)"
+    max_ltv: 80
+    max_term_yrs: 50
+    website: "https://shinhan.com.vn/vi/personal/vay-mua-nha.html"
+    notes: >
+      50-year term (longest for foreign bank). Grace period up to 60 months.
+      Additional 0.2–0.6% rate discount for qualifying customers.
+      Targets under-35 buyers. Korean expat + Vietnamese premium segment.
+
+  - name_vi: Ngân hàng Hong Leong Việt Nam
+    name_en: Hong Leong Bank Vietnam
+    short_name: Hong Leong Bank
+    aliases: [Hong Leong Bank, HLB, HLBVN]
+    type: foreign
+    ownership: "Hong Leong Bank (Malaysia) — 100%"
+    product_name: Vay mua nhà Hong Leong
+    promo_rate: "7.5%/year"
+    promo_period: "First 12 months"
+    floating_rate: "7.7%/year (24 months fixed)"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.hlbank.com.vn/vi/personal-banking/loan/housing-loan.html"
+    notes: >
+      More stable rates vs domestic banks. HCMC and Hanoi focus.
+      Targets Malaysian business community + upper-middle Vietnamese.
+
+  - name_vi: Ngân hàng Standard Chartered Việt Nam
+    name_en: Standard Chartered Vietnam
+    short_name: Standard Chartered
+    aliases: [Standard Chartered, StanChart, SCB Vietnam]
+    type: foreign
+    ownership: "Standard Chartered (UK) — 100%"
+    product_name: Home Mortgage / Vay thế chấp nhà ở
+    promo_rate: "6.49%/year"
+    promo_period: "Promotional package"
+    floating_rate: "~8–9%/year"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.sc.com/vn/borrow/home-loans/"
+    notes: >
+      Premium brand. Very strict credit criteria.
+      Targets expats, multinationals employees, and high-net-worth Vietnamese.
+
+  - name_vi: Ngân hàng UOB Việt Nam
+    name_en: United Overseas Bank Vietnam
+    short_name: UOB
+    aliases: [UOB]
+    type: foreign
+    ownership: "United Overseas Bank (Singapore) — 100%"
+    product_name: UOB Home Loan
+    promo_rate: "10.7%/year"
+    promo_period: "Fixed rate (min loan 400M VND)"
+    floating_rate: "~11%/year"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.uob.com.vn"
+    notes: >
+      Highest rate among foreign banks. Targets Singapore expat community.
+      Minimum loan 400M VND. Less competitive than HSBC/Shinhan on price.
+
+  - name_vi: Ngân hàng Kasikorn Việt Nam
+    name_en: KasikornBank Vietnam (KBank)
+    short_name: Kasikorn Bank
+    aliases: [Kasikorn Bank, KBank, KBANK]
+    type: foreign
+    ownership: "Kasikornbank (Thailand) — 100%"
+    product_name: Vay mua nhà KBank
+    promo_rate: "7.0%/year"
+    promo_period: "12 months fixed"
+    floating_rate: "~9%/year"
+    max_ltv: 70
+    max_term_yrs: 25
+    website: "https://www.kasikornbank.com.vn/vn/personal/homeloan/pages/index.aspx"
+    notes: >
+      Growing presence. Targets Thai business community + upper Vietnamese.
+      Competitive rates between HSBC and domestic banks.
