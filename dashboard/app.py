@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -9,6 +10,18 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+# Streamlit Cloud exposes Secrets as st.secrets but doesn't reliably mirror
+# them to os.environ — so we do it manually BEFORE importing pipeline.db,
+# which reads DATABASE_URL via os.getenv at module load time.
+try:
+    for _key in ("DATABASE_URL", "ANTHROPIC_API_KEY", "FIRECRAWL_API_KEY",
+                 "FACEBOOK_ACCESS_TOKEN", "FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"):
+        if _key in st.secrets:
+            os.environ[_key] = str(st.secrets[_key])
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+    # Running locally without a secrets.toml — that's fine, .env covers it.
+    pass
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import db  # noqa: E402
@@ -128,6 +141,10 @@ with st.sidebar:
     if st.button("🔄 Refresh"):
         st.cache_data.clear()
         st.rerun()
+
+    # Debug strip — shows which database the app is actually connected to.
+    # Remove once everything is verified.
+    st.caption(f"Backend: **{db.backend_name()}** · total articles: {len(df_all):,}")
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
 
