@@ -201,15 +201,6 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-    # Debug strip — shows which database the app is actually connected to.
-    # Remove once everything is verified.
-    _db_url_seen = "yes" if os.getenv("DATABASE_URL", "").startswith(("postgres://", "postgresql://")) else "no"
-    st.caption(
-        f"Backend: **{db.backend_name()}** · "
-        f"DB URL seen: {_db_url_seen} · "
-        f"total articles: {len(df_all):,}"
-    )
-
 # ── Apply filters ─────────────────────────────────────────────────────────────
 
 df = df_all.copy()

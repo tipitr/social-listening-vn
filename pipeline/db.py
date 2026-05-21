@@ -267,6 +267,18 @@ def init_schema() -> None:
                 if col not in existing:
                     conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {dtype}")
 
+        # Indexes — speed up the date-window scan that runs on every dashboard
+        # page load, and the scrape-heartbeat lookup on the home page. The
+        # IF NOT EXISTS makes this safe to call on every boot.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_articles_scraped_at "
+            "ON articles(scraped_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_usage_log_service_created "
+            "ON usage_log(service, created_at DESC)"
+        )
+
 
 def backend_name() -> str:
     return "postgres" if IS_POSTGRES else "sqlite"
