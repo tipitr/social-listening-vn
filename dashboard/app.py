@@ -90,6 +90,40 @@ def load_data(days: int) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=60)
+def load_prev_period(days: int) -> pd.DataFrame:
+    """Articles from the period IMMEDIATELY BEFORE the current N-day window.
+
+    Example: days=7 → returns articles from 8–14 days ago, used as the
+    baseline for period-over-period deltas in the KPI strip.
+    """
+    try:
+        return db.read_sql_df(
+            """SELECT id, category, sentiment, intent
+               FROM articles
+               WHERE scraped_at >= :prev_start AND scraped_at < :prev_end""",
+            params={
+                "prev_start": days_ago_iso(days * 2),
+                "prev_end":   days_ago_iso(days),
+            },
+        )
+    except Exception:
+        return pd.DataFrame()
+
+
+def pct_delta(curr: int, prev: int) -> str | None:
+    """Format a period-over-period delta like '+23%' or '-12%'.
+
+    Returns None when prev is 0 (Streamlit hides the delta in that case —
+    cleaner than showing 'NaN' or 'inf'). Also returns None when both are 0.
+    """
+    if prev == 0:
+        return None
+    delta = ((curr - prev) / prev) * 100
+    sign = "+" if delta >= 0 else ""
+    return f"{sign}{delta:.0f}%"
+
+
 @st.cache_data(ttl=3600)
 def load_home_loan_cfg() -> dict:
     return _load_keywords_yaml().get("home_loan", {})
@@ -223,21 +257,38 @@ if df.empty:
     st.info("No articles match the current filters.")
     st.stop()
 
-# KPI strip
-total     = len(df)
-complaints = (df["category"] == "complaint").sum()
-promos     = (df["category"] == "promotion").sum()
-seekers    = (df["intent"] == "seeking_info").sum()
-neg        = (df["sentiment"] == "negative").sum()
+# KPI strip — counts for the current window + period-over-period deltas
+total      = len(df)
+complaints = int((df["category"] == "complaint").sum())
+promos     = int((df["category"] == "promotion").sum())
+seekers    = int((df["intent"] == "seeking_info").sum())
+neg        = int((df["sentiment"] == "negative").sum())
 
+# Same KPIs over the previous N-day window so we can show "+12% vs last period"
+df_prev = load_prev_period(days)
+if df_prev.empty:
+    total_p = complaints_p = promos_p = seekers_p = neg_p = 0
+else:
+    total_p      = len(df_prev)
+    complaints_p = int((df_prev["category"] == "complaint").sum())
+    promos_p     = int((df_prev["category"] == "promotion").sum())
+    seekers_p    = int((df_prev["intent"] == "seeking_info").sum())
+    neg_p        = int((df_prev["sentiment"] == "negative").sum())
+
+# delta_color="inverse" flips the green/red so that "more complaints" shows
+# red (bad) and "fewer complaints" shows green (good). Same for negative
+# sentiment and competitor promos.
 k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Total Articles",    total)
-k2.metric("🚨 Complaints",     complaints,
-          delta=f"{'High' if complaints > total * 0.3 else 'Normal'}",
+k1.metric("Total Articles",       total,      delta=pct_delta(total, total_p))
+k2.metric("🚨 Complaints",         complaints, delta=pct_delta(complaints, complaints_p),
           delta_color="inverse")
-k3.metric("📢 Competitor Promos", promos)
-k4.metric("🔍 Potential Customers", seekers)
-k5.metric("😞 Negative Sentiment",  neg)
+k3.metric("📢 Competitor Promos",  promos,     delta=pct_delta(promos, promos_p),
+          delta_color="inverse")
+k4.metric("🔍 Potential Customers", seekers,   delta=pct_delta(seekers, seekers_p))
+k5.metric("😞 Negative Sentiment",  neg,       delta=pct_delta(neg, neg_p),
+          delta_color="inverse")
+
+st.caption(f"Deltas compare to the previous {days} days.")
 
 # Export current filtered articles as CSV
 _csv_cols = ["scraped_at", "source", "category", "sentiment", "intent",
