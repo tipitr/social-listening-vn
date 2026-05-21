@@ -118,6 +118,14 @@ def collect_all() -> int:
 
     inserted = save(articles)
 
+    # Log every run (even zero-insert ones) so the dashboard can show whether
+    # the daily schedule is alive. Otherwise a healthy-but-quiet day looks
+    # identical to a broken cron.
+    try:
+        log_usage("scrape_run", items_processed=inserted)
+    except Exception as exc:
+        logger.warning("Could not log scrape_run heartbeat: %s", exc)
+
     # Always categorize immediately so articles are never stranded without labels
     if inserted > 0:
         try:

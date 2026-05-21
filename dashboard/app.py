@@ -11,6 +11,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+# set_page_config MUST come before any other Streamlit call (including st.secrets).
+st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide")
+
 # Streamlit Cloud exposes Secrets as st.secrets but doesn't reliably mirror
 # them to os.environ — so we do it manually BEFORE importing pipeline.db,
 # which reads DATABASE_URL via os.getenv at module load time.
@@ -43,8 +46,6 @@ from pipeline.config_loader import load_keywords as _load_keywords_yaml  # noqa:
 from pipeline.timeutils import days_ago_iso  # noqa: E402
 
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
-
-st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide")
 
 # ── Styling ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +93,51 @@ def load_data(days: int) -> pd.DataFrame:
 @st.cache_data(ttl=3600)
 def load_home_loan_cfg() -> dict:
     return _load_keywords_yaml().get("home_loan", {})
+
+
+@st.cache_data(ttl=60)
+def get_last_scrape_iso() -> str | None:
+    """ISO timestamp of the most recent scrape heartbeat, or None if never run."""
+    try:
+        df = db.read_sql_df(
+            "SELECT MAX(created_at) AS last FROM usage_log WHERE service = 'scrape_run'"
+        )
+        if df.empty or df.iloc[0]["last"] is None:
+            return None
+        return str(df.iloc[0]["last"])
+    except Exception:
+        return None
+
+
+def _scrape_health_badge() -> str:
+    """HTML badge showing how stale the latest scrape is."""
+    from datetime import datetime
+    from pipeline.timeutils import LOCAL_TZ
+
+    last_iso = get_last_scrape_iso()
+    if not last_iso:
+        return ('<span style="background:#fef3c7;color:#92400e;padding:4px 10px;'
+                'border-radius:14px;font-size:13px;font-weight:600">'
+                '⏳ No scrape recorded yet — first scheduled run at 7 AM Vietnam time</span>')
+
+    try:
+        last_dt = datetime.fromisoformat(last_iso.replace("Z", ""))
+    except ValueError:
+        return ""
+
+    now = datetime.now(LOCAL_TZ).replace(tzinfo=None)
+    hours = (now - last_dt).total_seconds() / 3600
+
+    if hours < 25:  # daily cron + a little wiggle room
+        bg, fg, icon, label = "#d1fae5", "#065f46", "🟢", f"{int(max(hours, 0))}h ago"
+    elif hours < 49:
+        bg, fg, icon, label = "#fef3c7", "#92400e", "🟡", f"{int(hours)}h ago — may be stale"
+    else:
+        bg, fg, icon, label = "#fee2e2", "#991b1b", "🔴", f"{int(hours/24)}d ago — automation may be broken"
+
+    return (f'<span style="background:{bg};color:{fg};padding:4px 10px;'
+            f'border-radius:14px;font-size:13px;font-weight:600">'
+            f'{icon} Last daily scrape: {label}</span>')
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -179,6 +225,7 @@ if not df.empty:
 # ── Header ────────────────────────────────────────────────────────────────────
 
 st.markdown("# 🏠 Home Loan — Social Intelligence")
+st.html(_scrape_health_badge())
 st.caption(f"Last {days} days · {len(df)} articles · times shown in GMT+7 · refreshes every 60s")
 
 if df.empty:
