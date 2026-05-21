@@ -28,9 +28,36 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlparse
+
+# Load DATABASE_URL (and other secrets) from .env at the project root so the
+# user doesn't have to wrestle with shell quoting for passwords. Env vars set
+# in the actual environment (e.g. GitHub Actions secrets) still take priority.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+except ImportError:
+    pass
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 IS_POSTGRES = DATABASE_URL.startswith(("postgres://", "postgresql://"))
+
+
+def _pg_kwargs(url: str) -> dict:
+    """Split a postgres URL into psycopg2.connect keyword args.
+
+    Why we bother: libpq's URI parser requires percent-encoded special chars
+    in the password (e.g. % → %25). Passing components separately sidesteps
+    that requirement, so a password like "abc%xy" works without encoding.
+    """
+    p = urlparse(url)
+    return {
+        "host":     p.hostname,
+        "port":     p.port or 5432,
+        "user":     p.username,
+        "password": p.password,
+        "dbname":   (p.path or "/postgres").lstrip("/") or "postgres",
+    }
 
 SQLITE_PATH = Path(__file__).parent.parent / "data" / "social_listening.db"
 
@@ -101,7 +128,7 @@ class _PgConn:
 def connect() -> Iterator[Any]:
     """Yield a connection. Commits on clean exit, rolls back on exception."""
     if IS_POSTGRES:
-        raw = psycopg2.connect(DATABASE_URL)
+        raw = psycopg2.connect(**_pg_kwargs(DATABASE_URL))
         try:
             yield _PgConn(raw)
             raw.commit()
@@ -136,7 +163,7 @@ def read_sql_df(query: str, params: dict | None = None):
     if IS_POSTGRES:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            raw = psycopg2.connect(DATABASE_URL)
+            raw = psycopg2.connect(**_pg_kwargs(DATABASE_URL))
             try:
                 return pd.read_sql_query(adapt_sql(query), raw, params=params or {})
             finally:

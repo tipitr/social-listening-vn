@@ -24,6 +24,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# Read DATABASE_URL (and other secrets) from the project's .env file so the
+# user doesn't have to wrestle with shell-quoting for passwords with special chars.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env", override=False)
+except ImportError:
+    pass
+
 SQLITE_PATH = ROOT / "data" / "social_listening.db"
 
 
@@ -127,7 +135,8 @@ def main() -> None:
     print()
 
     import psycopg2
-    pg_conn = psycopg2.connect(pg_url)
+    from pipeline.db import _pg_kwargs
+    pg_conn = psycopg2.connect(**_pg_kwargs(pg_url))
     try:
         a_inserted = _insert_articles(pg_conn, articles)
         u_inserted = _insert_usage_log(pg_conn, usage)
