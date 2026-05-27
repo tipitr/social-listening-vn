@@ -164,14 +164,20 @@ def run() -> int:
             log_usage("claude_categorizer", MODEL, u.input_tokens, u.output_tokens, cost, saved)
 
         except json.JSONDecodeError as exc:
-            logger.error("Failed to parse JSON response for batch: %s", exc)
-            break
+            # Transient — Claude occasionally returns half-truncated JSON.
+            # Skip this batch but keep processing the rest so a single bad
+            # response doesn't strand the day's articles uncategorized.
+            logger.error("Failed to parse JSON response for batch (skipping): %s", exc)
+            continue
         except anthropic.AuthenticationError as exc:
+            # NOT transient — a bad key won't fix itself, no point looping.
             logger.error("Authentication failed — check ANTHROPIC_API_KEY: %s", exc)
             break
         except anthropic.APIError as exc:
-            logger.error("Claude API error for batch: %s", exc)
-            break
+            # Transient — 529 (overloaded), 503, transient network. Same
+            # rationale: keep going. The next batch may well succeed.
+            logger.error("Claude API error for batch (skipping): %s", exc)
+            continue
 
     logger.info("Done. Total categorized this run: %d", total_categorized)
     return total_categorized

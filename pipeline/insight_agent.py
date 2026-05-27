@@ -211,6 +211,10 @@ def generate_report(days: int = 7, stream_callback=None) -> str:
     with client.messages.stream(
         model=MODEL,
         max_tokens=4096,
+        # 180s ceiling. Opus reports with extended thinking can legitimately
+        # take 60-90s; 180s keeps the spinner honest while still failing fast
+        # if the stream stalls mid-response.
+        timeout=180,
         thinking={"type": "adaptive"},
         system=[{
             "type":          "text",

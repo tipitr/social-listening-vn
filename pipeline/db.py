@@ -57,6 +57,9 @@ def _pg_kwargs(url: str) -> dict:
         "user":     p.username,
         "password": p.password,
         "dbname":   (p.path or "/postgres").lstrip("/") or "postgres",
+        # 10s ceiling — Supabase free tier sometimes drops idle connections;
+        # without this the OS default (~75s) hangs every Streamlit page load.
+        "connect_timeout": 10,
     }
 
 SQLITE_PATH = Path(__file__).parent.parent / "data" / "social_listening.db"

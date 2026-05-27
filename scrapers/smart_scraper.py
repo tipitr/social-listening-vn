@@ -90,7 +90,8 @@ def _fetch_firecrawl(url: str):
     try:
         from firecrawl import V1FirecrawlApp
         app = V1FirecrawlApp(api_key=api_key)
-        result = app.scrape_url(url, formats=["markdown", "links"])
+        # 30s ceiling — same rationale as firecrawl_scraper.py
+        result = app.scrape_url(url, formats=["markdown", "links"], timeout=30)
         # Log 1 credit used (~$0.005 on paid tier, free on free tier)
         try:
             from pipeline.collector import log_usage

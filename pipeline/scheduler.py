@@ -34,6 +34,26 @@ def _load_schedule():
     return times, timezone
 
 
+def _log_failure(stage: str, exc: Exception) -> None:
+    """Write a 'scrape_failed' heartbeat to usage_log so the dashboard can
+    surface a broken pipeline within minutes instead of 24 hours.
+
+    We stash the stage + exception message in the `model` column (it's a free
+    text field). The dashboard reads usage_log for the existing "last scrape"
+    badge — once it knows about scrape_failed, it can flip to a red banner.
+    """
+    try:
+        from pipeline.collector import log_usage
+        # Truncate to 200 chars so a stack-trace-ish message doesn't blow up
+        # the row width on Postgres.
+        excerpt = f"{stage}: {exc}"[:200]
+        log_usage("scrape_failed", model=excerpt)
+    except Exception as log_exc:
+        # If even the failure log fails, fall back to stdout so we don't mask
+        # the original problem.
+        logger.error("Could not record failure heartbeat: %s", log_exc)
+
+
 def run_pipeline():
     logger.info("=== Daily pipeline starting ===")
     try:
@@ -42,6 +62,7 @@ def run_pipeline():
         logger.info("Collector done — %d new articles", inserted)
     except Exception as exc:
         logger.error("Collector failed: %s", exc)
+        _log_failure("collector", exc)
         return
 
     try:
@@ -50,6 +71,7 @@ def run_pipeline():
         logger.info("Categorizer done")
     except Exception as exc:
         logger.error("Categorizer failed: %s", exc)
+        _log_failure("categorizer", exc)
 
     logger.info("=== Daily pipeline complete ===")
 
