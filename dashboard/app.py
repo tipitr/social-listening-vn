@@ -506,14 +506,19 @@ with tab_action_feed:
                 for r in reasons
             )
 
+        # rel="noopener noreferrer" is required alongside target="_blank" —
+        # otherwise some browsers (and Streamlit's iframe context behind ngrok
+        # / Streamlit Cloud) navigate in the same tab and drop the user out
+        # of the dashboard.
         title_html = (
-            f'<a href="{url}" target="_blank" style="color:#1a1a1a;font-weight:700;'
-            f'font-size:15px;text-decoration:none">{title}</a>'
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+            f'style="color:#1a1a1a;font-weight:700;font-size:15px;text-decoration:none">{title}</a>'
             if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
         )
         src_html = (
-            f'<a href="{url}" target="_blank" style="background:#ecf0f1;color:#555;'
-            f'padding:2px 8px;border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+            f'style="background:#ecf0f1;color:#555;padding:2px 8px;'
+            f'border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
             if url else _badge(src, "#ecf0f1", "#555")
         )
 
@@ -751,8 +756,8 @@ with tab_competitor:
             sent_bg = SENT_COLOR.get(r["sentiment"], "#95a5a6")
             date_str = r["date"].strftime("%d %b") if pd.notna(r["date"]) else ""
             title_html = (
-                f'<a href="{r["url"]}" target="_blank" style="color:#1a1a1a;font-weight:600;'
-                f'font-size:14px;text-decoration:none">{r["title"]}</a>'
+                f'<a href="{r["url"]}" target="_blank" rel="noopener noreferrer" '
+                f'style="color:#1a1a1a;font-weight:600;font-size:14px;text-decoration:none">{r["title"]}</a>'
                 if r["url"] else f'<span style="font-weight:600">{r["title"]}</span>'
             )
             card2 = (
