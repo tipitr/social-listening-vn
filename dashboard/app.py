@@ -65,6 +65,7 @@ from pipeline.config_loader import load_banks as _load_banks_yaml  # noqa: E402
 from pipeline.config_loader import load_keywords as _load_keywords_yaml  # noqa: E402
 from pipeline.timeutils import days_ago_iso  # noqa: E402
 
+from dashboard.source_taxonomy import classify_source  # noqa: E402
 from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR  # noqa: E402
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
 
@@ -101,7 +102,14 @@ def load_data(days: int) -> pd.DataFrame:
         # DB not ready yet (first run) — show empty dashboard.
         return pd.DataFrame()
     if not df.empty:
-        df["scraped_at"] = pd.to_datetime(df["scraped_at"])
+        # format="ISO8601" accepts any valid ISO 8601 string regardless of
+        # whether microseconds are present. Different scrapers in the
+        # pipeline produce slightly different shapes — news/forum scrapers
+        # call now_iso() which includes microseconds, while the Facebook
+        # scrapers build their timestamps from Unix epoch seconds (no
+        # microseconds). Without this hint pandas infers the format from
+        # row 1 and then errors on the first row with a different shape.
+        df["scraped_at"] = pd.to_datetime(df["scraped_at"], format="ISO8601")
     return df
 
 
@@ -336,7 +344,20 @@ if not df.empty:
     combined = df["title"].fillna("") + " " + df["summary_en"].fillna("") + " " + df["summary_vi"].fillna("")
     df["banks_mentioned"] = combined.apply(lambda t: detect_banks(t, banks))
 
-st.caption(f"Last {days} days · {len(df)} articles · times shown in GMT+7 · refreshes every 60s")
+    # Source-type bucket (facebook / forum / news) — drives the Customer
+    # Voice and Competitor Watch view modes in the Action Feed.
+    df["source_type"] = df["source"].apply(classify_source)
+
+# Volume breakdown for the caption — surfaces the source mix at a glance
+# so users notice when (e.g.) Facebook bank pages start dominating the feed.
+_src_mix = df["source_type"].value_counts().to_dict() if not df.empty else {}
+_src_mix_str = " · ".join(
+    f"{_src_mix.get(t, 0)} {t}" for t in ("forum", "facebook", "news") if _src_mix.get(t, 0)
+)
+st.caption(
+    f"Last {days} days · {len(df)} articles "
+    f"({_src_mix_str}) · times in GMT+7 · refreshes every 60s"
+)
 
 if df.empty:
     st.info("No articles match the current filters.")
@@ -521,11 +542,16 @@ with tab_action_feed:
             f'style="color:{THEME["text"]};font-weight:700;font-size:15px;text-decoration:none">{title}</a>'
             if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
         )
+        # Source-type icon prefixed to the source chip so the reader can
+        # tell at a glance whether this came from Facebook, a forum, or a
+        # news site without having to remember which name maps where.
+        src_type = classify_source(src)
+        src_icon = {"facebook": "📘", "forum": "💬", "news": "📰"}.get(src_type, "🔗")
         src_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
             f'style="background:{THEME["bg_alt"]};color:{THEME["text_muted"]};padding:2px 8px;'
-            f'border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
-            if url else _badge(src, THEME["bg_alt"], THEME["text_muted"])
+            f'border-radius:12px;font-size:11px;text-decoration:none">{src_icon} {src}</a>'
+            if url else _badge(f"{src_icon} {src}", THEME["bg_alt"], THEME["text_muted"])
         )
 
         card = (
@@ -555,47 +581,72 @@ with tab_action_feed:
         # of opening a new tab. st.markdown preserves target.
         st.markdown(card, unsafe_allow_html=True)
 
-    # ── View mode toggle ────────────────────────────────────────────────────
+    # ── View-mode toggle ────────────────────────────────────────────────────
+    # Four views, each tuned to a different audience inside the team:
+    #   🎯 Action Queue       — mixed sources, urgency-ranked, for leadership
+    #   💬 Customer Voice     — forum-only, raw buyer chatter, for product/UX
+    #   🏦 Competitor Watch   — Facebook bank/realestate pages, for marketing
+    #   📚 Browse All         — category-grouped (legacy view for power users)
+    VIEW_MODES = ["🎯 Action Queue", "💬 Customer Voice", "🏦 Competitor Watch", "📚 Browse All"]
     view_mode = st.radio(
-        "View mode",
-        ["🎯 Action Queue", "📚 Browse All"],
+        "View mode", VIEW_MODES,
         horizontal=True, label_visibility="collapsed",
         key="action_view_mode",
     )
 
-    # ── Action Queue: flat priority-sorted list with Done buttons ───────────
-    if view_mode == "🎯 Action Queue":
-        df_q = df.copy()
-        df_q["_score"] = df_q.apply(_priority_score, axis=1)
-        df_q = df_q[~df_q["id"].isin(st.session_state["dismissed_ids"])]
-        df_q = df_q.sort_values("_score").head(20)
+    # Pre-filter the dataframe by source-type for the two segmented views.
+    # The same priority-ranking + Done-button logic is reused — just on
+    # a smaller slice — so the UX stays consistent across all three
+    # priority-sorted modes.
+    if view_mode == "💬 Customer Voice":
+        df_view = df[df["source_type"] == "forum"]
+        view_subtitle = "Forum threads — what buyers are actually saying. Newer + negative items surface first."
+        empty_message = "No forum chatter in this date range. Try widening the date filter."
+    elif view_mode == "🏦 Competitor Watch":
+        df_view = df[df["source_type"] == "facebook"]
+        view_subtitle = "Facebook posts from bank + real estate pages — what marketers are pushing."
+        empty_message = "No Facebook posts captured yet. Set RAPIDAPI_KEY in .env or wait for the next daily scrape."
+    else:
+        df_view = df
+        view_subtitle = "Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them from view."
+        empty_message = "🎉 Queue empty — nothing else flagged for review in this date range."
 
-        dismissed_n = len(st.session_state["dismissed_ids"])
-        header_l, header_r = st.columns([4, 2])
-        with header_l:
-            st.markdown(f"### {len(df_q)} items need a look")
-            st.caption("Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them from view.")
-        with header_r:
-            if dismissed_n:
-                if st.button(f"↺ Restore {dismissed_n} dismissed", use_container_width=True):
-                    st.session_state["dismissed_ids"] = set()
-                    st.rerun()
-
+    # ── Priority-sorted list with Done buttons (Action Queue / Customer Voice / Competitor Watch) ──
+    if view_mode in ("🎯 Action Queue", "💬 Customer Voice", "🏦 Competitor Watch"):
+        df_q = df_view.copy()
         if df_q.empty:
-            st.success("🎉 Queue empty — nothing else flagged for review in this date range.")
+            st.info(empty_message)
         else:
-            for _, row in df_q.iterrows():
-                cat = row.get("category") or "general"
-                section_bg     = sections.get(cat, sections["general"])[1]
-                section_accent = sections.get(cat, sections["general"])[2]
-                _render_card(row, section_bg=section_bg, section_accent=section_accent,
-                             show_priority_reasons=True)
-                # Dismiss button under each card
-                b_left, _b_sp = st.columns([1, 7])
-                with b_left:
-                    if st.button("✓ Done", key=f"done_{row['id']}", use_container_width=True):
-                        st.session_state["dismissed_ids"].add(row["id"])
+            df_q["_score"] = df_q.apply(_priority_score, axis=1)
+            df_q = df_q[~df_q["id"].isin(st.session_state["dismissed_ids"])]
+            df_q = df_q.sort_values("_score").head(20)
+
+            dismissed_n = len(st.session_state["dismissed_ids"])
+            header_l, header_r = st.columns([4, 2])
+            with header_l:
+                st.markdown(f"### {len(df_q)} items need a look")
+                st.caption(view_subtitle)
+            with header_r:
+                if dismissed_n:
+                    if st.button(f"↺ Restore {dismissed_n} dismissed", use_container_width=True):
+                        st.session_state["dismissed_ids"] = set()
                         st.rerun()
+
+            if df_q.empty:
+                st.success("🎉 You've cleared every item in this view.")
+            else:
+                for _, row in df_q.iterrows():
+                    cat = row.get("category") or "general"
+                    section_bg     = sections.get(cat, sections["general"])[1]
+                    section_accent = sections.get(cat, sections["general"])[2]
+                    _render_card(row, section_bg=section_bg, section_accent=section_accent,
+                                 show_priority_reasons=True)
+                    # Dismiss button under each card
+                    b_left, _b_sp = st.columns([1, 7])
+                    with b_left:
+                        if st.button("✓ Done", key=f"done_{row['id']}", use_container_width=True):
+                            st.session_state["dismissed_ids"].add(row["id"])
+                            st.rerun()
 
     # ── Browse All: original grouped-by-category view (kept for power users) ─
     else:
@@ -906,6 +957,32 @@ with tab_overview:
                           yaxis_title=None, xaxis_title=None,
                           legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig, use_container_width=True)
+
+    # ── Volume by Source Type ─────────────────────────────────────────────
+    # Quick sanity check on the source-mix: lets the reader see at a glance
+    # if Facebook bank pages are starting to dominate the article stream,
+    # which inflates the "positive sentiment" and "competitor promo" KPIs.
+    st.subheader("Volume by Source Type")
+    src_type_df = (
+        df["source_type"]
+        .map({"facebook": "📘 Facebook", "forum": "💬 Forum", "news": "📰 News"})
+        .value_counts()
+        .reset_index()
+    )
+    src_type_df.columns = ["Source Type", "Articles"]
+    SOURCE_TYPE_COLORS = {
+        "📘 Facebook": THEME["info"],         # blue — distinct from brand greens
+        "💬 Forum":    THEME["primary"],      # brand green — the customer-voice channel
+        "📰 News":     THEME["text_subtle"],  # neutral grey
+    }
+    fig_st = px.bar(
+        src_type_df, x="Articles", y="Source Type", orientation="h",
+        color="Source Type", color_discrete_map=SOURCE_TYPE_COLORS,
+        height=160, text_auto=True,
+    )
+    fig_st.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0),
+                         yaxis_title=None, xaxis_title=None)
+    st.plotly_chart(fig_st, use_container_width=True)
 
     # Volume by day
     st.subheader("Article Volume by Day")
