@@ -14,6 +14,18 @@ import streamlit as st
 # set_page_config MUST come before any other Streamlit call (including st.secrets).
 st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide")
 
+# ── Small CSS polish ─────────────────────────────────────────────────────────
+# Streamlit's mobile defaults already stack columns and wrap headings okay;
+# trying to "improve" padding/font-size globally tends to clip the H1 against
+# the Streamlit chrome. Keep this minimal — only style the popover triggers.
+st.html(
+    """
+    <style>
+      [data-testid="stPopover"] button { font-weight: 600; }
+    </style>
+    """
+)
+
 # Streamlit Cloud exposes Secrets as st.secrets but doesn't reliably mirror
 # them to os.environ — so we do it manually BEFORE importing pipeline.db,
 # which reads DATABASE_URL via os.getenv at module load time.
@@ -404,13 +416,7 @@ tab_cost         = _tabs[4] if _admin_mode else None
 # ═══════════════════════════════════════════════════════════
 
 with tab_action_feed:
-    # Sort by priority: complaints first, then interest_rate, then promos…
-    cat_rank = {c: i for i, c in enumerate(PRIORITY_ORDER)}
-    df_feed  = df.copy()
-    df_feed["_rank"] = df_feed["category"].map(cat_rank).fillna(99)
-    df_feed  = df_feed.sort_values(["_rank", "scraped_at"], ascending=[True, False])
-
-    # Section headers
+    # ── Section visual config (used by both view modes) ─────────────────────
     sections = {
         "complaint":      ("🚨 Complaints & Pain Points",   "#fdf2f2", "#e74c3c"),
         "interest_rate":  ("💰 Rate Intelligence",           "#f0f7ff", "#2980b9"),
@@ -419,6 +425,7 @@ with tab_action_feed:
         "bank_comparison":("🏦 Bank Comparisons",            "#fff8f0", "#d35400"),
         "general":        ("📰 General News",                "#fafafa", "#7f8c8d"),
     }
+    cat_rank = {c: i for i, c in enumerate(PRIORITY_ORDER)}
 
     def _badge(text, bg, fg="white"):
         return (f'<span style="background:{bg};color:{fg};padding:2px 10px;'
@@ -427,75 +434,168 @@ with tab_action_feed:
     # Per-sentiment card tint overrides the section default so negative items
     # stand out even when grouped under a "neutral" category like General News.
     SENT_BG = {
-        "negative": ("#fdecea", "#c0392b"),   # warm red wash, stronger border
-        "positive": ("#eafaf1", "#1e8449"),   # mint wash
-        "neutral":  (None,      None),        # keep section default
+        "negative": ("#fdecea", "#c0392b"),
+        "positive": ("#eafaf1", "#1e8449"),
+        "neutral":  (None,      None),
     }
 
-    for cat, (heading, card_bg, accent) in sections.items():
-        grp = df_feed[df_feed["category"] == cat]
-        if grp.empty:
-            continue
-        st.html(f"<h3 style='margin:0 0 8px'>{heading} <small style='color:{accent};font-size:16px'>{len(grp)}</small></h3>")
+    # Session-scoped dismissal: marking an item "Done" hides it for this
+    # browser session only. Keeps the queue actionable without needing a DB.
+    if "dismissed_ids" not in st.session_state:
+        st.session_state["dismissed_ids"] = set()
 
-        for _, row in grp.iterrows():
-            sent    = row.get("sentiment") or "neutral"
-            _bg, _border = SENT_BG.get(sent, (None, None))
-            row_bg     = _bg     if _bg     is not None else card_bg
-            row_accent = _border if _border is not None else accent
-            src     = row.get("source") or ""
-            title   = row.get("title")  or "(no title)"
-            url     = row.get("url")    or ""
-            en      = row.get("summary_en") or ""
-            vi      = row.get("summary_vi") or ""
-            intent  = INTENT_LABEL.get(row.get("intent") or "", "")
-            date    = row["scraped_at"].strftime("%d %b %H:%M") if pd.notna(row["scraped_at"]) else ""
-            b_names = row.get("banks_mentioned") or []
+    def _priority_reasons(row) -> list[str]:
+        """Human-readable reasons this item is in the action queue."""
+        reasons = []
+        if row.get("category") == "complaint":
+            reasons.append("🚨 Complaint")
+        if row.get("sentiment") == "negative":
+            reasons.append("🔻 Negative")
+        if row.get("category") == "promotion":
+            reasons.append("📢 Competitor move")
+        if row.get("category") == "interest_rate":
+            reasons.append("💰 Rate signal")
+        if row.get("intent") == "seeking_info":
+            reasons.append("🔍 Potential customer")
+        return reasons
 
-            sent_bg = SENT_COLOR.get(sent, "#95a5a6")
+    def _priority_score(row) -> float:
+        """Lower = more urgent. Combines category rank, sentiment, and recency."""
+        score = cat_rank.get(row.get("category"), 99) * 100
+        if row.get("sentiment") == "negative":
+            score -= 250  # negative trumps category — promote a "negative general" above a "neutral promotion"
+        elif row.get("sentiment") == "positive":
+            score += 50
+        if row.get("intent") == "seeking_info":
+            score -= 30
+        # Recency: subtract hours-since to favor newer items
+        ts = row.get("scraped_at")
+        if pd.notna(ts):
+            from datetime import datetime
+            hrs = max(0, (datetime.now() - ts.to_pydatetime().replace(tzinfo=None)).total_seconds() / 3600)
+            score += min(hrs, 168) * 0.1  # cap at 1 week so very old items don't drown out
+        return score
 
-            bank_badges = "".join(
-                f'<span style="background:#eaf4fb;color:#2471a3;padding:2px 8px;'
-                f'border-radius:12px;font-size:11px;margin-right:4px">{b}</span>'
-                for b in b_names
+    def _render_card(row, *, section_bg: str, section_accent: str, show_priority_reasons: bool = False):
+        """Render one article card. Pure HTML — no Streamlit widgets — so it's cheap."""
+        sent    = row.get("sentiment") or "neutral"
+        _bg, _border = SENT_BG.get(sent, (None, None))
+        row_bg     = _bg     if _bg     is not None else section_bg
+        row_accent = _border if _border is not None else section_accent
+        src     = row.get("source") or ""
+        title   = row.get("title")  or "(no title)"
+        url     = row.get("url")    or ""
+        en      = row.get("summary_en") or ""
+        vi      = row.get("summary_vi") or ""
+        intent  = INTENT_LABEL.get(row.get("intent") or "", "")
+        date    = row["scraped_at"].strftime("%d %b %H:%M") if pd.notna(row["scraped_at"]) else ""
+        b_names = row.get("banks_mentioned") or []
+        sent_bg = SENT_COLOR.get(sent, "#95a5a6")
+
+        bank_badges = "".join(
+            f'<span style="background:#eaf4fb;color:#2471a3;padding:2px 8px;'
+            f'border-radius:12px;font-size:11px;margin-right:4px">{b}</span>'
+            for b in b_names
+        )
+        reason_badges = ""
+        if show_priority_reasons:
+            reasons = _priority_reasons(row)
+            reason_badges = "".join(
+                f'<span style="background:#fff3e0;color:#a04000;padding:2px 8px;'
+                f'border-radius:12px;font-size:11px;margin-right:4px;font-weight:600">{r}</span>'
+                for r in reasons
             )
 
-            title_html = (
-                f'<a href="{url}" target="_blank" style="color:#1a1a1a;font-weight:700;'
-                f'font-size:15px;text-decoration:none">{title}</a>'
-                if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
-            )
+        title_html = (
+            f'<a href="{url}" target="_blank" style="color:#1a1a1a;font-weight:700;'
+            f'font-size:15px;text-decoration:none">{title}</a>'
+            if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
+        )
+        src_html = (
+            f'<a href="{url}" target="_blank" style="background:#ecf0f1;color:#555;'
+            f'padding:2px 8px;border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
+            if url else _badge(src, "#ecf0f1", "#555")
+        )
 
-            src_html = (
-                f'<a href="{url}" target="_blank" style="background:#ecf0f1;color:#555;'
-                f'padding:2px 8px;border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
-                if url else _badge(src, "#ecf0f1", "#555")
-            )
+        card = (
+            f'<div style="background:{row_bg};border:1px solid #e8e8e8;'
+            f'border-left:5px solid {row_accent};border-radius:10px;'
+            f'padding:14px 18px;margin-bottom:10px;'
+            f'box-shadow:0 1px 3px rgba(0,0,0,0.05)">'
+            f'<div style="display:flex;justify-content:space-between;'
+            f'align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">'
+            f'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+            f'{_badge(SENT_ICON.get(sent,"") + " " + sent, sent_bg)}'
+            f'{src_html}{bank_badges}{reason_badges}'
+            f'</div>'
+            f'<span style="color:#999;font-size:12px">{date}</span>'
+            f'</div>'
+            f'{title_html}'
+            f'<p style="margin:8px 0 3px;color:#2c3e50;font-size:14px">&#127468;&#127463; {en or "&mdash;"}</p>'
+            f'<p style="margin:0;color:#666;font-size:13px;font-style:italic">&#127483;&#127475; {vi or "&mdash;"}</p>'
+            f'<div style="margin-top:8px">'
+            f'<span style="background:#f4f4f4;color:#555;padding:2px 8px;'
+            f'border-radius:12px;font-size:11px">{intent}</span>'
+            f'</div></div>'
+        )
+        st.html(card)
 
-            card = (
-                f'<div style="background:{row_bg};border:1px solid #e8e8e8;'
-                f'border-left:5px solid {row_accent};border-radius:10px;'
-                f'padding:14px 18px;margin-bottom:10px;'
-                f'box-shadow:0 1px 3px rgba(0,0,0,0.05)">'
-                f'<div style="display:flex;justify-content:space-between;'
-                f'align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">'
-                f'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-                f'{_badge(SENT_ICON.get(sent,"") + " " + sent, sent_bg)}'
-                f'{src_html}{bank_badges}'
-                f'</div>'
-                f'<span style="color:#999;font-size:12px">{date}</span>'
-                f'</div>'
-                f'{title_html}'
-                f'<p style="margin:8px 0 3px;color:#2c3e50;font-size:14px">&#127468;&#127463; {en or "&mdash;"}</p>'
-                f'<p style="margin:0;color:#666;font-size:13px;font-style:italic">&#127483;&#127475; {vi or "&mdash;"}</p>'
-                f'<div style="margin-top:8px">'
-                f'<span style="background:#f4f4f4;color:#555;padding:2px 8px;'
-                f'border-radius:12px;font-size:11px">{intent}</span>'
-                f'</div></div>'
-            )
-            st.html(card)
+    # ── View mode toggle ────────────────────────────────────────────────────
+    view_mode = st.radio(
+        "View mode",
+        ["🎯 Action Queue", "📚 Browse All"],
+        horizontal=True, label_visibility="collapsed",
+        key="action_view_mode",
+    )
 
-        st.html("<div style='margin-bottom:8px'></div>")
+    # ── Action Queue: flat priority-sorted list with Done buttons ───────────
+    if view_mode == "🎯 Action Queue":
+        df_q = df.copy()
+        df_q["_score"] = df_q.apply(_priority_score, axis=1)
+        df_q = df_q[~df_q["id"].isin(st.session_state["dismissed_ids"])]
+        df_q = df_q.sort_values("_score").head(20)
+
+        dismissed_n = len(st.session_state["dismissed_ids"])
+        header_l, header_r = st.columns([4, 2])
+        with header_l:
+            st.markdown(f"### {len(df_q)} items need a look")
+            st.caption("Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them from view.")
+        with header_r:
+            if dismissed_n:
+                if st.button(f"↺ Restore {dismissed_n} dismissed", use_container_width=True):
+                    st.session_state["dismissed_ids"] = set()
+                    st.rerun()
+
+        if df_q.empty:
+            st.success("🎉 Queue empty — nothing else flagged for review in this date range.")
+        else:
+            for _, row in df_q.iterrows():
+                cat = row.get("category") or "general"
+                section_bg     = sections.get(cat, sections["general"])[1]
+                section_accent = sections.get(cat, sections["general"])[2]
+                _render_card(row, section_bg=section_bg, section_accent=section_accent,
+                             show_priority_reasons=True)
+                # Dismiss button under each card
+                b_left, _b_sp = st.columns([1, 7])
+                with b_left:
+                    if st.button("✓ Done", key=f"done_{row['id']}", use_container_width=True):
+                        st.session_state["dismissed_ids"].add(row["id"])
+                        st.rerun()
+
+    # ── Browse All: original grouped-by-category view (kept for power users) ─
+    else:
+        df_feed = df.copy()
+        df_feed["_rank"] = df_feed["category"].map(cat_rank).fillna(99)
+        df_feed = df_feed.sort_values(["_rank", "scraped_at"], ascending=[True, False])
+
+        for cat, (heading, card_bg, accent) in sections.items():
+            grp = df_feed[df_feed["category"] == cat]
+            if grp.empty:
+                continue
+            st.html(f"<h3 style='margin:0 0 8px'>{heading} <small style='color:{accent};font-size:16px'>{len(grp)}</small></h3>")
+            for _, row in grp.iterrows():
+                _render_card(row, section_bg=card_bg, section_accent=accent)
+            st.html("<div style='margin-bottom:8px'></div>")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -540,7 +640,53 @@ with tab_competitor:
             })
 
     if not rows_banks:
-        st.info("No bank names detected in current articles. Try extending the date range.")
+        # Empty state — instead of a flat "no data" line, surface what we DO
+        # know (top topics + sentiment mix) and concrete next steps the user
+        # can take. This keeps the tab useful even on quiet days.
+        st.html(
+            """
+            <div style="background:#f8f9fb;border:1px dashed #d0d4dc;border-radius:14px;
+                        padding:24px 28px;text-align:center;margin:8px 0 20px">
+              <div style="font-size:36px;line-height:1">🔍</div>
+              <h3 style="margin:6px 0 4px;color:#1a1f2c">No banks mentioned by name</h3>
+              <p style="color:#5a6473;margin:0 0 12px;font-size:14px">
+                In the current date range, the scraped articles didn't reference
+                any of the banks tracked in <code>config/banks.yaml</code>.
+                That can mean a quiet week — or that competitors are being
+                discussed by product names instead of brand names.
+              </p>
+            </div>
+            """
+        )
+
+        st.markdown("**Try one of these instead:**")
+        es_c1, es_c2, es_c3 = st.columns(3)
+        with es_c1:
+            st.markdown(
+                "**📅 Widen the window**  \n"
+                "Switch the date range in the sidebar to **14d** or **30d** — bank mentions "
+                "are bursty around rate announcements and promo seasons."
+            )
+        with es_c2:
+            st.markdown(
+                "**🏷️ Check by category**  \n"
+                "Use the **Category** filter to keep only *promotion* or *bank_comparison* "
+                "articles. If banks are mentioned anywhere, they'll show up there first."
+            )
+        with es_c3:
+            st.markdown(
+                "**📚 Browse what's there**  \n"
+                "Head to the **Overview** tab to see the top phrases word cloud — "
+                "it surfaces whichever bank names *are* being mentioned, even if not in `banks.yaml`."
+            )
+
+        # Show top topics in current data as a fallback signal
+        if not df.empty:
+            st.divider()
+            st.markdown("**What people *are* talking about (current filter)**")
+            topic_df = df["category"].value_counts().head(5).reset_index()
+            topic_df.columns = ["Category", "Articles"]
+            st.dataframe(topic_df, use_container_width=True, hide_index=True)
     else:
         bdf = pd.DataFrame(rows_banks)
 
