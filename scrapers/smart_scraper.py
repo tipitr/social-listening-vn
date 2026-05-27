@@ -90,8 +90,11 @@ def _fetch_firecrawl(url: str):
     try:
         from firecrawl import V1FirecrawlApp
         app = V1FirecrawlApp(api_key=api_key)
-        # 30s ceiling — same rationale as firecrawl_scraper.py
-        result = app.scrape_url(url, formats=["markdown", "links"], timeout=30)
+        # 30s ceiling — Firecrawl's timeout argument is in MILLISECONDS,
+        # not seconds. Minimum allowed value is 1000ms (1s). Setting 30s
+        # gives us a generous-but-bounded ceiling so a stalled page can't
+        # hang the scheduler.
+        result = app.scrape_url(url, formats=["markdown", "links"], timeout=30000)
         # Log 1 credit used (~$0.005 on paid tier, free on free tier)
         try:
             from pipeline.collector import log_usage

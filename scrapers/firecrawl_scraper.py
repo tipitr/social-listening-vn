@@ -107,8 +107,9 @@ def scrape() -> list:
 
             try:
                 # 30s ceiling per page — Firecrawl normally responds in <10s.
-                # Without this, a stalled job can hang the scheduler indefinitely.
-                result = app.scrape_url(url, formats=["markdown", "links"], timeout=30)
+                # Note: Firecrawl's timeout argument is in MILLISECONDS,
+                # not seconds (minimum allowed: 1000ms).
+                result = app.scrape_url(url, formats=["markdown", "links"], timeout=30000)
                 md = result.markdown or ""
             except Exception as exc:
                 logger.warning("Failed to scrape %s: %s", name, exc)
