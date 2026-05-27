@@ -344,6 +344,29 @@ if not df.empty:
     combined = df["title"].fillna("") + " " + df["summary_en"].fillna("") + " " + df["summary_vi"].fillna("")
     df["banks_mentioned"] = combined.apply(lambda t: detect_banks(t, banks))
 
+    # Real-estate developer mentions — Competitor Watch wants these too.
+    # banks.yaml only contains banks, but Vinhomes / Masterise / Novaland
+    # offer their own home-financing programs and absolutely count as
+    # competitive intel for KBank's mortgage product.
+    _RE_DEVELOPERS = {
+        "Vinhomes":  ["vinhomes"],
+        "Masterise": ["masterise"],
+        "Novaland":  ["novaland"],
+    }
+    def _detect_realestate(text: str) -> list:
+        t = (text or "").lower()
+        return [name for name, aliases in _RE_DEVELOPERS.items()
+                if any(alias in t for alias in aliases)]
+    df["realestate_mentioned"] = combined.apply(_detect_realestate)
+
+    # Boolean — used as Competitor Watch's gate. True if the article
+    # mentions any bank OR any real-estate developer we track. We keep
+    # banks_mentioned and realestate_mentioned separate so the Competitor
+    # Intel tab's charts (which are bank-specific) aren't polluted.
+    df["mentions_competitor"] = (
+        df["banks_mentioned"].apply(bool) | df["realestate_mentioned"].apply(bool)
+    )
+
     # Source-type bucket (facebook / forum / news) — drives the Customer
     # Voice and Competitor Watch view modes in the Action Feed.
     df["source_type"] = df["source"].apply(classify_source)
@@ -585,7 +608,8 @@ with tab_action_feed:
     # Four views, each tuned to a different audience inside the team:
     #   🎯 Action Queue       — mixed sources, urgency-ranked, for leadership
     #   💬 Customer Voice     — forum-only, raw buyer chatter, for product/UX
-    #   🏦 Competitor Watch   — Facebook bank/realestate pages, for marketing
+    #   🏦 Competitor Watch   — anything mentioning a competitor bank by name
+    #                          (FB marketing + forum comparisons + news), for marketing
     #   📚 Browse All         — category-grouped (legacy view for power users)
     VIEW_MODES = ["🎯 Action Queue", "💬 Customer Voice", "🏦 Competitor Watch", "📚 Browse All"]
     view_mode = st.radio(
@@ -594,7 +618,7 @@ with tab_action_feed:
         key="action_view_mode",
     )
 
-    # Pre-filter the dataframe by source-type for the two segmented views.
+    # Pre-filter the dataframe by audience cut for the two segmented views.
     # The same priority-ranking + Done-button logic is reused — just on
     # a smaller slice — so the UX stays consistent across all three
     # priority-sorted modes.
@@ -603,9 +627,16 @@ with tab_action_feed:
         view_subtitle = "Forum threads — what buyers are actually saying. Newer + negative items surface first."
         empty_message = "No forum chatter in this date range. Try widening the date filter."
     elif view_mode == "🏦 Competitor Watch":
-        df_view = df[df["source_type"] == "facebook"]
-        view_subtitle = "Facebook posts from bank + real estate pages — what marketers are pushing."
-        empty_message = "No Facebook posts captured yet. Set RAPIDAPI_KEY in .env or wait for the next daily scrape."
+        # Competitor intel = anything that names a competitor — bank or
+        # real-estate developer — anywhere in title/summary. FB posts
+        # (always competitor marketing) are unconditionally included on
+        # top so the view doesn't go silent on quiet news days.
+        df_view = df[
+            (df["source_type"] == "facebook")
+            | df["mentions_competitor"]
+        ]
+        view_subtitle = "Anything naming a competitor bank or developer — FB marketing, forum comparisons, press coverage. Pick your battle."
+        empty_message = "No competitor mentions in this date range. Try widening the date filter, or wait for the next daily scrape."
     else:
         df_view = df
         view_subtitle = "Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them from view."
