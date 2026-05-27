@@ -14,298 +14,380 @@ import streamlit as st
 # set_page_config MUST come before any other Streamlit call (including st.secrets).
 st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide")
 
-# ── Editorial stylesheet ─────────────────────────────────────────────────────
-# Option 2 "Editorial Intelligence Report" look: magazine typography (Playfair
-# Display for headings, Inter for body), generous whitespace, soft shadows,
-# pastel chips. This single CSS block does most of the visual lift — the
-# underlying Streamlit widgets stay the same.
+# ── Dark "Bloomberg / Bank-grade" stylesheet ─────────────────────────────────
+# OLED dark mode with IBM Plex Sans + Plex Mono. KBank green is the only
+# accent — every positive indicator, focus state, and CTA. Subtle green glow
+# on hover gives the trading-desk feel. Single CSS block does the heavy
+# lifting; underlying Streamlit widgets stay the same.
 st.html(
     """
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-      /* ── Base typography ───────────────────────────────────────────── */
+      /* ── Base / dark canvas ───────────────────────────────────────── */
       html, body, [class*="css"], .stApp, .main, [data-testid="stAppViewContainer"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-        color: #1A1F2C;
+        font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        color: #F8FAFC;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      .stApp { background: #FAFAF7; }
-
-      /* Headings use Playfair Display — magazine feel */
-      h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
-        font-family: 'Playfair Display', Georgia, serif !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.01em;
-        color: #0F1419;
+      .stApp, [data-testid="stAppViewContainer"], .main {
+        background: #020617 !important;
+        background-image:
+          radial-gradient(circle at 0% 0%, rgba(34,197,94,0.04), transparent 40%),
+          radial-gradient(circle at 100% 0%, rgba(59,130,246,0.03), transparent 40%);
       }
-      h1, .stMarkdown h1 { font-size: 2.4rem !important; line-height: 1.15; font-weight: 800 !important; }
-      h2, .stMarkdown h2 { font-size: 1.7rem !important; line-height: 1.25; }
-      h3, .stMarkdown h3 { font-size: 1.25rem !important; line-height: 1.3; }
+      [data-testid="stHeader"] { background: transparent !important; }
+      [data-testid="stToolbar"] { background: transparent !important; }
 
-      /* Subheaders (stSubheader) — keep editorial but slightly tighter */
-      [data-testid="stHeader"] { background: transparent; }
+      /* Headings — Plex Sans bold, tight tracking */
+      h1, h2, h3, h4, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.015em;
+        color: #F8FAFC !important;
+      }
+      h1, .stMarkdown h1 { font-size: 1.9rem !important; line-height: 1.15; font-weight: 700 !important; }
+      h2, .stMarkdown h2 { font-size: 1.4rem !important; line-height: 1.2; }
+      h3, .stMarkdown h3 { font-size: 1.1rem !important; line-height: 1.3; font-weight: 600 !important; }
 
-      /* Caption styling */
-      .stCaption, [data-testid="stCaptionContainer"] {
-        font-family: 'Inter', sans-serif !important;
-        color: #5B6470 !important;
-        font-size: 0.85rem !important;
-        letter-spacing: 0.01em;
+      p, span, div, label, .stMarkdown { color: #CBD5E1; }
+
+      /* Caption */
+      .stCaption, [data-testid="stCaptionContainer"], small {
+        font-family: 'IBM Plex Mono', monospace !important;
+        color: #64748B !important;
+        font-size: 0.75rem !important;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
       }
 
       /* ── Layout container ─────────────────────────────────────────── */
       .block-container {
-        padding-top: 2.5rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 4rem !important;
-        max-width: 1280px;
+        max-width: 1320px;
       }
 
-      /* ── Tabs — editorial pill bar ─────────────────────────────────── */
+      /* ── Tabs — terminal-style underline ──────────────────────────── */
       [data-testid="stTabs"] [role="tablist"] {
-        gap: 4px;
-        border-bottom: 1px solid #ECEFEC;
+        gap: 0;
+        border-bottom: 1px solid #1E293B;
         padding-bottom: 0;
         margin-bottom: 1.5rem;
+        background: transparent;
       }
       [data-testid="stTabs"] [role="tab"] {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        color: #5B6470 !important;
-        padding: 12px 18px !important;
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.85rem !important;
+        color: #64748B !important;
+        padding: 14px 18px !important;
         border-radius: 0 !important;
         background: transparent !important;
         border-bottom: 2px solid transparent !important;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease;
+        letter-spacing: 0.02em;
       }
       [data-testid="stTabs"] [role="tab"]:hover {
-        color: #138F2D !important;
-        background: rgba(19,143,45,0.04) !important;
+        color: #22C55E !important;
+        background: rgba(34,197,94,0.04) !important;
       }
       [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-        color: #0F1419 !important;
-        border-bottom: 2px solid #138F2D !important;
+        color: #F8FAFC !important;
+        border-bottom: 2px solid #22C55E !important;
         background: transparent !important;
+        box-shadow: 0 1px 0 #22C55E, 0 -10px 30px rgba(34,197,94,0.10) inset;
       }
 
-      /* ── KPI metrics — editorial numbers ───────────────────────────── */
+      /* ── KPI metrics — Bloomberg tiles ────────────────────────────── */
       [data-testid="stMetric"] {
-        background: #FFFFFF;
-        border: 1px solid #ECEFEC;
-        border-radius: 14px;
-        padding: 18px 20px;
-        box-shadow: 0 1px 2px rgba(20,30,40,0.03);
-        transition: all 0.2s ease;
+        background: linear-gradient(180deg, #0F172A 0%, #0A1124 100%);
+        border: 1px solid #1E293B;
+        border-radius: 8px;
+        padding: 16px 18px;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
+        transition: all 0.15s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      [data-testid="stMetric"]::before {
+        content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(34,197,94,0.4), transparent);
+        opacity: 0;
+        transition: opacity 0.2s ease;
       }
       [data-testid="stMetric"]:hover {
-        box-shadow: 0 8px 24px rgba(19,143,45,0.08), 0 2px 6px rgba(20,30,40,0.04);
+        border-color: #334155;
+        box-shadow: 0 0 0 1px rgba(34,197,94,0.15), 0 8px 24px rgba(0,0,0,0.4);
         transform: translateY(-1px);
       }
+      [data-testid="stMetric"]:hover::before { opacity: 1; }
       [data-testid="stMetricLabel"] {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.75rem !important;
-        font-weight: 600 !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 0.65rem !important;
+        font-weight: 500 !important;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #5B6470 !important;
+        letter-spacing: 0.12em;
+        color: #64748B !important;
       }
       [data-testid="stMetricValue"] {
-        font-family: 'Playfair Display', Georgia, serif !important;
-        font-size: 2.2rem !important;
-        font-weight: 700 !important;
-        color: #0F1419 !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 1.9rem !important;
+        font-weight: 600 !important;
+        color: #F8FAFC !important;
         line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 0 24px rgba(34,197,94,0.06);
       }
       [data-testid="stMetricDelta"] {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.8rem !important;
-        font-weight: 600 !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 0.72rem !important;
+        font-weight: 500 !important;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
       }
 
-      /* ── Popover filter triggers — pill style ──────────────────────── */
+      /* ── Popover filter triggers — terminal pills ──────────────────── */
       [data-testid="stPopover"] button {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-        background: #FFFFFF !important;
-        border: 1px solid #E5EAE6 !important;
-        border-radius: 999px !important;
-        padding: 8px 16px !important;
-        color: #1A1F2C !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-weight: 500 !important;
+        font-size: 0.75rem !important;
+        background: #0F172A !important;
+        border: 1px solid #1E293B !important;
+        border-radius: 6px !important;
+        padding: 8px 14px !important;
+        color: #CBD5E1 !important;
         transition: all 0.15s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
       }
       [data-testid="stPopover"] button:hover {
-        border-color: #138F2D !important;
-        background: #F2FAF4 !important;
+        border-color: #22C55E !important;
+        background: #131C32 !important;
+        color: #22C55E !important;
       }
 
-      /* ── Radio (view mode) — segmented control ─────────────────────── */
+      /* Popover panel (multiselect) */
+      [data-testid="stPopover"] [data-baseweb="popover"] > div {
+        background: #0F172A !important;
+        border: 1px solid #1E293B !important;
+      }
+
+      /* ── Radio (view mode) — segmented terminal ────────────────────── */
       [data-testid="stRadio"] > div {
-        gap: 4px;
-        background: #F4F6F4;
+        gap: 2px;
+        background: #0A1124;
         padding: 4px;
-        border-radius: 999px;
+        border-radius: 8px;
         display: inline-flex;
+        border: 1px solid #1E293B;
       }
       [data-testid="stRadio"] label {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.82rem !important;
         padding: 6px 14px !important;
-        border-radius: 999px !important;
+        border-radius: 6px !important;
         cursor: pointer;
         transition: all 0.15s ease;
-        color: #5B6470 !important;
+        color: #94A3B8 !important;
       }
-      [data-testid="stRadio"] label:hover { color: #138F2D !important; }
+      [data-testid="stRadio"] label:hover { color: #22C55E !important; }
       [data-testid="stRadio"] label:has(input:checked) {
-        background: #FFFFFF !important;
-        color: #0F1419 !important;
-        box-shadow: 0 1px 3px rgba(20,30,40,0.08);
+        background: #1A2440 !important;
+        color: #F8FAFC !important;
+        box-shadow: 0 0 0 1px rgba(34,197,94,0.20);
       }
       [data-testid="stRadio"] input { display: none !important; }
 
-      /* ── Buttons — refined ─────────────────────────────────────────── */
+      /* ── Buttons ──────────────────────────────────────────────────── */
       .stButton button, .stDownloadButton button {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        border-radius: 999px !important;
-        border: 1px solid #E5EAE6 !important;
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.82rem !important;
+        border-radius: 6px !important;
+        background: #0F172A !important;
+        border: 1px solid #1E293B !important;
+        color: #CBD5E1 !important;
         transition: all 0.15s ease;
       }
       .stButton button:hover, .stDownloadButton button:hover {
-        border-color: #138F2D !important;
-        color: #138F2D !important;
-        background: #F2FAF4 !important;
+        border-color: #22C55E !important;
+        color: #22C55E !important;
+        background: #131C32 !important;
+        box-shadow: 0 0 16px rgba(34,197,94,0.12);
       }
 
-      /* ── Dividers — softer ─────────────────────────────────────────── */
+      /* ── Dividers ─────────────────────────────────────────────────── */
       hr, [data-testid="stMarkdownContainer"] hr {
         border: none;
-        border-top: 1px solid #ECEFEC;
-        margin: 2rem 0;
+        border-top: 1px solid #1E293B;
+        margin: 1.75rem 0;
       }
 
-      /* ── Expander — editorial frame ────────────────────────────────── */
+      /* ── Expander ─────────────────────────────────────────────────── */
       [data-testid="stExpander"] {
-        border: 1px solid #ECEFEC !important;
-        border-radius: 12px !important;
-        background: #FFFFFF !important;
+        border: 1px solid #1E293B !important;
+        border-radius: 8px !important;
+        background: #0F172A !important;
       }
       [data-testid="stExpander"] summary {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        font-weight: 500 !important;
+        color: #CBD5E1 !important;
       }
+      [data-testid="stExpander"] summary:hover { color: #22C55E !important; }
 
-      /* ── Dataframes — cleaner ──────────────────────────────────────── */
+      /* ── Dataframes — dark terminal table ──────────────────────────── */
       [data-testid="stDataFrame"] {
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
-        border: 1px solid #ECEFEC;
+        border: 1px solid #1E293B;
+        background: #0F172A;
+      }
+      [data-testid="stDataFrame"] * {
+        font-family: 'IBM Plex Mono', monospace !important;
+        color: #CBD5E1 !important;
+        background: transparent !important;
       }
 
-      /* ── Info / success / warning blocks ───────────────────────────── */
+      /* ── Alerts ───────────────────────────────────────────────────── */
       [data-testid="stAlert"] {
-        border-radius: 12px !important;
-        font-family: 'Inter', sans-serif !important;
+        border-radius: 8px !important;
+        font-family: 'IBM Plex Sans', sans-serif !important;
+        background: #0F172A !important;
+        border: 1px solid #1E293B !important;
+        color: #CBD5E1 !important;
       }
 
-      /* ── Card hover lift (used by .editorial-card class) ───────────── */
-      .editorial-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      /* ── Card hover lift ──────────────────────────────────────────── */
+      .editorial-card, .terminal-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
       }
-      .editorial-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 32px rgba(20,30,40,0.08), 0 4px 12px rgba(20,30,40,0.05) !important;
+      .terminal-card:hover, .editorial-card:hover {
+        transform: translateY(-1px);
+        border-color: #334155 !important;
+        box-shadow: 0 0 0 1px rgba(34,197,94,0.12), 0 12px 32px rgba(0,0,0,0.45) !important;
       }
 
-      /* ── Hero block ────────────────────────────────────────────────── */
+      /* ── Hero block — trading-desk briefing ───────────────────────── */
       .hero-wrap {
-        background: linear-gradient(135deg, #F2FAF4 0%, #FFFFFF 65%);
-        border: 1px solid #E0EFE3;
-        border-radius: 24px;
-        padding: 40px 48px;
-        margin-bottom: 28px;
-        box-shadow: 0 2px 8px rgba(20,30,40,0.04);
+        background:
+          linear-gradient(135deg, rgba(34,197,94,0.06) 0%, transparent 50%),
+          linear-gradient(180deg, #0F172A 0%, #0A1124 100%);
+        border: 1px solid #1E293B;
+        border-radius: 12px;
+        padding: 32px 36px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 40px rgba(0,0,0,0.4);
         position: relative;
         overflow: hidden;
       }
       .hero-wrap::before {
         content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(34,197,94,0.5), transparent);
+      }
+      .hero-wrap::after {
+        content: "";
         position: absolute; top: 0; right: 0;
-        width: 220px; height: 220px;
-        background: radial-gradient(circle at top right, rgba(19,143,45,0.10), transparent 70%);
+        width: 320px; height: 320px;
+        background: radial-gradient(circle at top right, rgba(34,197,94,0.10), transparent 60%);
         pointer-events: none;
       }
       .hero-kicker {
-        font-family: 'Inter', sans-serif;
-        font-size: 0.72rem;
-        font-weight: 700;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.68rem;
+        font-weight: 500;
         text-transform: uppercase;
-        letter-spacing: 0.18em;
-        color: #138F2D;
+        letter-spacing: 0.16em;
+        color: #22C55E;
         margin-bottom: 14px;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 10px;
+        padding: 4px 10px;
+        background: rgba(34,197,94,0.10);
+        border: 1px solid rgba(34,197,94,0.25);
+        border-radius: 4px;
       }
-      .hero-kicker::after {
+      .hero-kicker::before {
         content: "";
-        height: 1px;
-        flex: 1;
-        background: linear-gradient(90deg, #C9E4CF, transparent);
-        max-width: 120px;
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #22C55E;
+        box-shadow: 0 0 8px #22C55E;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
       }
       .hero-headline {
-        font-family: 'Playfair Display', Georgia, serif;
-        font-size: 2.6rem;
-        font-weight: 800;
-        line-height: 1.1;
-        color: #0F1419;
-        letter-spacing: -0.015em;
-        margin: 0 0 14px;
-        max-width: 820px;
+        font-family: 'IBM Plex Sans', sans-serif;
+        font-size: 2.1rem;
+        font-weight: 700;
+        line-height: 1.18;
+        color: #F8FAFC;
+        letter-spacing: -0.02em;
+        margin: 12px 0 12px;
+        max-width: 920px;
       }
       .hero-deck {
-        font-family: 'Inter', sans-serif;
-        font-size: 1.05rem;
+        font-family: 'IBM Plex Sans', sans-serif;
+        font-size: 0.95rem;
         font-weight: 400;
         line-height: 1.55;
-        color: #3B424E;
+        color: #94A3B8;
         margin: 0;
-        max-width: 720px;
+        max-width: 760px;
       }
       .hero-meta {
-        font-family: 'Inter', sans-serif;
-        font-size: 0.8rem;
-        color: #5B6470;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.72rem;
+        color: #64748B;
         margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid #1E293B;
         display: flex;
-        gap: 16px;
+        gap: 18px;
         flex-wrap: wrap;
         align-items: center;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
       }
       .hero-byline {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        font-weight: 500;
+        color: #94A3B8;
       }
       .hero-dot {
-        width: 4px; height: 4px; border-radius: 50%;
-        background: #B0B8C1;
+        width: 3px; height: 3px; border-radius: 50%;
+        background: #334155;
         display: inline-block;
+      }
+
+      /* Selectbox + multiselect dark restyle */
+      [data-baseweb="select"] > div, [data-baseweb="input"] > div {
+        background: #0F172A !important;
+        border-color: #1E293B !important;
+        color: #CBD5E1 !important;
+      }
+      [data-baseweb="tag"] {
+        background: rgba(34,197,94,0.12) !important;
+        border: 1px solid rgba(34,197,94,0.3) !important;
+        color: #86EFAC !important;
       }
 
       /* Mobile */
       @media (max-width: 768px) {
-        .hero-wrap { padding: 28px 24px; border-radius: 18px; }
-        .hero-headline { font-size: 1.8rem; }
-        .hero-deck { font-size: 0.95rem; }
-        [data-testid="stMetricValue"] { font-size: 1.6rem !important; }
+        .hero-wrap { padding: 24px 20px; }
+        .hero-headline { font-size: 1.5rem; }
+        .hero-deck { font-size: 0.9rem; }
+        [data-testid="stMetricValue"] { font-size: 1.4rem !important; }
         .block-container { padding-top: 1.5rem !important; }
       }
     </style>
@@ -354,6 +436,50 @@ from pipeline.timeutils import days_ago_iso  # noqa: E402
 from dashboard.source_taxonomy import classify_source  # noqa: E402
 from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR, CATEGORY_CHIP  # noqa: E402
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
+
+# ── Plotly dark template (Bloomberg/terminal look) ───────────────────────────
+# Registered once so every chart inherits the OLED background + Plex Mono
+# axis text without needing per-chart `update_layout` calls.
+import plotly.io as _pio  # noqa: E402
+
+_DARK = THEME["dark"]
+_pio.templates["kbank_dark"] = go.layout.Template(
+    layout=go.Layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(
+            family="IBM Plex Sans, sans-serif",
+            color=_DARK["text_muted"],
+            size=12,
+        ),
+        title=dict(font=dict(family="IBM Plex Sans", color=_DARK["text"], size=14)),
+        xaxis=dict(
+            gridcolor=_DARK["divider"],
+            zerolinecolor=_DARK["border"],
+            linecolor=_DARK["border"],
+            tickfont=dict(family="IBM Plex Mono", size=11, color=_DARK["text_subtle"]),
+            title=dict(font=dict(family="IBM Plex Sans", color=_DARK["text_muted"], size=12)),
+        ),
+        yaxis=dict(
+            gridcolor=_DARK["divider"],
+            zerolinecolor=_DARK["border"],
+            linecolor=_DARK["border"],
+            tickfont=dict(family="IBM Plex Mono", size=11, color=_DARK["text_subtle"]),
+            title=dict(font=dict(family="IBM Plex Sans", color=_DARK["text_muted"], size=12)),
+        ),
+        legend=dict(font=dict(family="IBM Plex Sans", color=_DARK["text_muted"], size=11)),
+        hoverlabel=dict(
+            bgcolor=_DARK["surface_alt"],
+            bordercolor=_DARK["border_strong"],
+            font=dict(family="IBM Plex Mono", color=_DARK["text"], size=12),
+        ),
+        colorway=[
+            _DARK["accent"], _DARK["info"], _DARK["warning"], _DARK["danger"],
+            "#A855F7", "#EC4899", "#06B6D4", "#84CC16",
+        ],
+    )
+)
+_pio.templates.default = "kbank_dark"
 
 # ── Styling ──────────────────────────────────────────────────────────────────
 # SENT_COLOR / CAT_COLOR are imported from dashboard.theme — that module is the
@@ -923,10 +1049,10 @@ with tab_action_feed:
         return score
 
     def _render_card(row, *, section_bg: str, section_accent: str, show_priority_reasons: bool = False):
-        """Render one article card — editorial magazine style.
+        """Render one article card — Bloomberg/terminal-style dark surface.
 
-        Layout: pastel category chip (top-left) + sentiment dot, large serif
-        title, two-line bilingual summary, slim meta row. Hover lifts the card.
+        Layout: mono category tag + sentiment dot + monospace date, bold sans
+        title, bilingual summary, thin meta footer. Negative items glow red.
         """
         sent    = row.get("sentiment") or "neutral"
         src     = row.get("source") or ""
@@ -938,105 +1064,116 @@ with tab_action_feed:
         date    = row["scraped_at"].strftime("%d %b · %H:%M") if pd.notna(row["scraped_at"]) else ""
         b_names = row.get("banks_mentioned") or []
         cat     = row.get("category") or "general"
-        sent_color = SENT_COLOR.get(sent, THEME["text_subtle"])
 
-        # Category chip uses pastel CATEGORY_CHIP palette (softer than the
-        # accent color we use for charts).
+        # Sentiment colors mapped to dark-palette accents
+        sent_color_dark = {
+            "positive": "#22C55E",
+            "neutral":  "#64748B",
+            "negative": "#EF4444",
+        }.get(sent, "#64748B")
+
         chip = CATEGORY_CHIP.get(cat, CATEGORY_CHIP["general"])
-        cat_label = cat.replace("_", " ").title()
+        cat_label = cat.replace("_", " ").upper()
         cat_chip = (
             f'<span style="background:{chip["bg"]};color:{chip["fg"]};'
-            f'padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;'
-            f'text-transform:uppercase;letter-spacing:0.06em;'
-            f'font-family:Inter,sans-serif">{cat_label}</span>'
+            f'padding:3px 9px;border-radius:4px;font-size:0.68rem;font-weight:500;'
+            f'letter-spacing:0.10em;font-family:\'IBM Plex Mono\',monospace">{cat_label}</span>'
         )
 
-        # Sentiment dot — quiet visual signal, not a loud badge
         sent_dot = (
             f'<span style="display:inline-flex;align-items:center;gap:6px;'
-            f'color:{THEME["text_muted"]};font-size:11px;font-weight:600;'
-            f'font-family:Inter,sans-serif;text-transform:uppercase;letter-spacing:0.06em">'
-            f'<span style="width:8px;height:8px;border-radius:50%;background:{sent_color};'
-            f'display:inline-block"></span>{sent}</span>'
+            f'color:{sent_color_dark};font-size:0.68rem;font-weight:500;'
+            f'font-family:\'IBM Plex Mono\',monospace;text-transform:uppercase;letter-spacing:0.10em">'
+            f'<span style="width:6px;height:6px;border-radius:50%;background:{sent_color_dark};'
+            f'box-shadow:0 0 8px {sent_color_dark};display:inline-block"></span>{sent}</span>'
         )
 
         bank_badges = "".join(
-            f'<span style="background:{THEME["info_bg"]};color:{THEME["info_fg"]};'
-            f'padding:3px 9px;border-radius:999px;font-size:10.5px;margin-right:4px;'
-            f'font-weight:600;font-family:Inter,sans-serif">{b}</span>'
+            f'<span style="background:rgba(59,130,246,0.12);color:#93C5FD;'
+            f'padding:2px 8px;border-radius:4px;font-size:0.68rem;margin-right:4px;'
+            f'font-weight:500;font-family:\'IBM Plex Mono\',monospace;'
+            f'letter-spacing:0.04em">{b}</span>'
             for b in b_names
         )
         reason_badges = ""
         if show_priority_reasons:
             reasons = _priority_reasons(row)
             reason_badges = "".join(
-                f'<span style="background:{THEME["warning_bg"]};color:{THEME["warning_fg"]};'
-                f'padding:3px 9px;border-radius:999px;font-size:10.5px;margin-right:4px;'
-                f'font-weight:700;font-family:Inter,sans-serif">{r}</span>'
+                f'<span style="background:rgba(245,158,11,0.12);color:#FCD34D;'
+                f'padding:2px 8px;border-radius:4px;font-size:0.68rem;margin-right:4px;'
+                f'font-weight:500;font-family:\'IBM Plex Mono\',monospace;'
+                f'letter-spacing:0.04em">{r}</span>'
                 for r in reasons
             )
 
-        # Serif title — the editorial signature move
+        # Title — Plex Sans, tight, bright on dark
         title_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="color:#0F1419;font-family:\'Playfair Display\',Georgia,serif;'
-            f'font-weight:700;font-size:1.15rem;line-height:1.3;text-decoration:none;'
-            f'display:block;margin:10px 0 8px">{title}</a>'
+            f'style="color:#F8FAFC;font-family:\'IBM Plex Sans\',sans-serif;'
+            f'font-weight:600;font-size:1.02rem;line-height:1.35;text-decoration:none;'
+            f'display:block;margin:12px 0 8px;letter-spacing:-0.01em">{title}</a>'
             if url else
-            f'<span style="color:#0F1419;font-family:\'Playfair Display\',Georgia,serif;'
-            f'font-weight:700;font-size:1.15rem;line-height:1.3;display:block;'
-            f'margin:10px 0 8px">{title}</span>'
+            f'<span style="color:#F8FAFC;font-family:\'IBM Plex Sans\',sans-serif;'
+            f'font-weight:600;font-size:1.02rem;line-height:1.35;display:block;'
+            f'margin:12px 0 8px;letter-spacing:-0.01em">{title}</span>'
         )
 
         src_type = classify_source(src)
-        src_icon = {"facebook": "📘", "forum": "💬", "news": "📰"}.get(src_type, "🔗")
+        src_icon = {"facebook": "FB", "forum": "FRM", "news": "NEWS"}.get(src_type, "SRC")
         src_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="color:{THEME["text_muted"]};font-size:11.5px;text-decoration:none;'
-            f'font-weight:500;font-family:Inter,sans-serif">{src_icon} {src}</a>'
+            f'style="color:#64748B;font-size:0.7rem;text-decoration:none;'
+            f'font-weight:500;font-family:\'IBM Plex Mono\',monospace;'
+            f'letter-spacing:0.06em">[{src_icon}] {src}</a>'
             if url else
-            f'<span style="color:{THEME["text_muted"]};font-size:11.5px;'
-            f'font-family:Inter,sans-serif">{src_icon} {src}</span>'
+            f'<span style="color:#64748B;font-size:0.7rem;'
+            f'font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.06em">[{src_icon}] {src}</span>'
         )
 
-        # Negative items get a subtle red accent strip (kept thin & elegant)
+        # Top accent strip — negative glows red, positive glows green
         accent_strip = ""
         if sent == "negative":
-            accent_strip = f'border-top:3px solid {THEME["danger"]};'
-        elif sent == "positive" and cat in ("complaint",):
-            # rare but possible
-            accent_strip = f'border-top:3px solid {THEME["success"]};'
+            accent_strip = (
+                'border-top:1px solid #EF4444;'
+                'box-shadow:0 -1px 12px rgba(239,68,68,0.18), 0 1px 0 rgba(255,255,255,0.02) inset;'
+            )
+        elif sent == "positive":
+            accent_strip = (
+                'border-top:1px solid #22C55E;'
+                'box-shadow:0 -1px 12px rgba(34,197,94,0.15), 0 1px 0 rgba(255,255,255,0.02) inset;'
+            )
+        else:
+            accent_strip = 'box-shadow:0 1px 0 rgba(255,255,255,0.02) inset;'
 
         card = (
-            f'<div class="editorial-card" style="background:#FFFFFF;'
-            f'border:1px solid #ECEFEC;{accent_strip}'
-            f'border-radius:14px;padding:22px 24px;margin-bottom:14px;'
-            f'box-shadow:0 1px 2px rgba(20,30,40,0.03)">'
+            f'<div class="terminal-card" style="background:linear-gradient(180deg,#0F172A 0%,#0A1124 100%);'
+            f'border:1px solid #1E293B;{accent_strip}'
+            f'border-radius:8px;padding:18px 20px;margin-bottom:10px">'
             # Top meta row
             f'<div style="display:flex;justify-content:space-between;'
-            f'align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:2px">'
-            f'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+            f'align-items:center;flex-wrap:wrap;gap:8px">'
+            f'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
             f'{cat_chip}{sent_dot}'
             f'</div>'
-            f'<span style="color:{THEME["text_subtle"]};font-size:11.5px;'
-            f'font-family:Inter,sans-serif">{date}</span>'
+            f'<span style="color:#475569;font-size:0.68rem;'
+            f'font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.08em">{date}</span>'
             f'</div>'
             # Headline
             f'{title_html}'
             # Bilingual summary
-            f'<p style="margin:6px 0 4px;color:#3B424E;font-size:0.92rem;line-height:1.55;'
-            f'font-family:Inter,sans-serif">🇬🇧 {en or "—"}</p>'
-            f'<p style="margin:0 0 14px;color:{THEME["text_muted"]};font-size:0.88rem;'
-            f'line-height:1.5;font-style:italic;font-family:Inter,sans-serif">🇻🇳 {vi or "—"}</p>'
-            # Footer meta row — source, banks, reasons, intent
+            f'<p style="margin:6px 0 4px;color:#CBD5E1;font-size:0.86rem;line-height:1.55;'
+            f'font-family:\'IBM Plex Sans\',sans-serif">EN · {en or "—"}</p>'
+            f'<p style="margin:0 0 14px;color:#94A3B8;font-size:0.82rem;'
+            f'line-height:1.5;font-family:\'IBM Plex Sans\',sans-serif">VI · {vi or "—"}</p>'
+            # Footer meta row
             f'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
-            f'padding-top:12px;border-top:1px solid #F4F6F4">'
+            f'padding-top:10px;border-top:1px solid #1A2236">'
             f'{src_html}'
-            f'<span style="color:#D5DAD5">·</span>'
+            f'<span style="color:#334155">·</span>'
             f'{bank_badges}{reason_badges}'
-            f'<span style="margin-left:auto;color:{THEME["text_subtle"]};font-size:10.5px;'
-            f'font-family:Inter,sans-serif;font-weight:600;text-transform:uppercase;'
-            f'letter-spacing:0.06em">{intent}</span>'
+            f'<span style="margin-left:auto;color:#475569;font-size:0.65rem;'
+            f'font-family:\'IBM Plex Mono\',monospace;font-weight:500;text-transform:uppercase;'
+            f'letter-spacing:0.10em">{intent}</span>'
             f'</div>'
             f'</div>'
         )

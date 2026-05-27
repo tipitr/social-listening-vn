@@ -83,13 +83,40 @@ THEME: dict = {
         "kicker_fg":   "#0E6B22",   # uppercase "TODAY'S SIGNAL" label
     },
 
-    # ── Editorial typography ────────────────────────────────────────────────
-    # Playfair Display for display/serif headings (magazine feel), Inter for
-    # body/UI. Loaded from Google Fonts via CSS in app.py.
+    # ── Typography (Bloomberg/Bank-grade) ───────────────────────────────────
+    # IBM Plex Sans is the bank/fintech industry signal — used by IBM, banks,
+    # fintech dashboards. Plex Mono for tabular figures (numbers stay aligned
+    # under any value change). Serif kept for one-off editorial moments.
     "fonts": {
-        "serif":      "'Playfair Display', 'Source Serif Pro', Georgia, serif",
-        "sans":       "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        "mono":       "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+        "sans":       "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        "mono":       "'IBM Plex Mono', 'JetBrains Mono', 'SF Mono', Menlo, monospace",
+        "serif":      "'IBM Plex Serif', Georgia, serif",
+    },
+
+    # ── Dark mode (OLED Pro) palette ────────────────────────────────────────
+    # Single source of truth for the Bloomberg/trading-desk look. KBank green
+    # is the ONLY accent — every other color is a neutral slate so positives
+    # and CTAs are unmistakable.
+    "dark": {
+        "bg":            "#020617",  # near-black, OLED-friendly
+        "bg_alt":        "#070D1C",  # subtle surface lift
+        "surface":       "#0F172A",  # card / panel
+        "surface_alt":   "#131C32",  # nested surface
+        "surface_hover": "#1A2440",  # hover lift
+        "border":        "#1E293B",  # default border
+        "border_strong": "#334155",  # emphasized
+        "text":          "#F8FAFC",  # primary
+        "text_muted":    "#94A3B8",  # secondary
+        "text_subtle":   "#64748B",  # tertiary / captions
+        "divider":       "#1A2236",
+        "accent":        "#22C55E",  # bright green for indicators (slightly brighter than KBank for dark contrast)
+        "accent_strong": "#16A34A",
+        "accent_glow":   "rgba(34,197,94,0.25)",
+        "kbank":         "#138F2D",  # brand green (still anchored)
+        "danger":        "#EF4444",  # alerts
+        "danger_glow":   "rgba(239,68,68,0.20)",
+        "warning":       "#F59E0B",
+        "info":          "#3B82F6",
     },
 
     # ── Spacing scale (4px base) ────────────────────────────────────────────
@@ -112,16 +139,16 @@ THEME: dict = {
     },
 }
 
-# ── Pastel chip palette for editorial category tags ────────────────────────
-# Softer than THEME["category"][cat]["accent"] — used as the chip fill in the
-# magazine card grid. Text uses the matching accent color for contrast.
+# ── Category chips — dark-mode trading-desk style ──────────────────────────
+# Low-opacity fills on dark, with brighter text for contrast. Each category
+# keeps its semantic hue so a scanner can tell apart at a glance.
 CATEGORY_CHIP: dict = {
-    "complaint":       {"bg": "#FCEEEA", "fg": "#8E2A1F"},
-    "interest_rate":   {"bg": "#E6F4E9", "fg": "#0E6B22"},
-    "promotion":       {"bg": "#EEF8F0", "fg": "#0E6B22"},
-    "loan_approval":   {"bg": "#E8F1F8", "fg": "#1F4F7A"},
-    "bank_comparison": {"bg": "#FDF4E1", "fg": "#7A4F09"},
-    "general":         {"bg": "#F2F4F2", "fg": "#5B6470"},
+    "complaint":       {"bg": "rgba(239,68,68,0.14)",  "fg": "#FCA5A5"},
+    "interest_rate":   {"bg": "rgba(34,197,94,0.14)",  "fg": "#86EFAC"},
+    "promotion":       {"bg": "rgba(34,197,94,0.10)",  "fg": "#6EE7B7"},
+    "loan_approval":   {"bg": "rgba(59,130,246,0.14)", "fg": "#93C5FD"},
+    "bank_comparison": {"bg": "rgba(245,158,11,0.14)", "fg": "#FCD34D"},
+    "general":         {"bg": "rgba(148,163,184,0.12)","fg": "#CBD5E1"},
 }
 
 # ── Backwards-compat aliases ────────────────────────────────────────────────
