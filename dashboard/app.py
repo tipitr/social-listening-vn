@@ -132,7 +132,130 @@ st.html(
         box-shadow: 0 1px 0 #22C55E, 0 -10px 30px rgba(34,197,94,0.10) inset;
       }
 
-      /* ── KPI metrics — Bloomberg tiles ────────────────────────────── */
+      /* ── Custom KPI tiles (sparkline grid) ────────────────────────── */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin: 6px 0 14px;
+      }
+      @media (max-width: 1100px) {
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      .kpi-tile {
+        background: linear-gradient(180deg, #0F172A 0%, #0A1124 100%);
+        border: 1px solid #1E293B;
+        border-radius: 8px;
+        padding: 14px 16px;
+        transition: all 0.15s ease;
+        position: relative;
+        overflow: hidden;
+        min-height: 96px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .kpi-tile::before {
+        content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(34,197,94,0.4), transparent);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+      .kpi-tile:hover {
+        border-color: #334155;
+        box-shadow: 0 0 0 1px rgba(34,197,94,0.15), 0 8px 24px rgba(0,0,0,0.4);
+        transform: translateY(-1px);
+      }
+      .kpi-tile:hover::before { opacity: 1; }
+      .kpi-label {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.62rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #64748B;
+      }
+      .kpi-value-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: 4px 0 0;
+      }
+      .kpi-value {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 1.9rem;
+        font-weight: 600;
+        color: #F8FAFC;
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 0 24px rgba(34,197,94,0.06);
+      }
+      .kpi-spark {
+        margin-top: 6px;
+        opacity: 0.95;
+      }
+      .kpi-tile:hover .kpi-spark { opacity: 1; }
+
+      /* ── Section header in Daily Brief (Urgent / Watch / Routine) ──── */
+      .section-band {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 18px 0 10px;
+        padding: 8px 14px;
+        background: rgba(15,23,42,0.6);
+        border: 1px solid #1E293B;
+        border-left: 3px solid var(--band-color, #22C55E);
+        border-radius: 6px;
+        font-family: 'IBM Plex Mono', monospace;
+      }
+      .section-band-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--band-color, #22C55E);
+      }
+      .section-band-count {
+        margin-left: auto;
+        font-size: 0.7rem;
+        color: #64748B;
+        letter-spacing: 0.06em;
+      }
+
+      /* ── VI summary details/summary collapse ─────────────────────── */
+      .vi-toggle {
+        margin-top: 6px;
+        cursor: pointer;
+      }
+      .vi-toggle > summary {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.7rem;
+        color: #64748B;
+        letter-spacing: 0.06em;
+        list-style: none;
+        text-transform: uppercase;
+        font-weight: 500;
+        outline: none;
+      }
+      .vi-toggle > summary::-webkit-details-marker { display: none; }
+      .vi-toggle > summary::before { content: "+ "; color: #22C55E; }
+      .vi-toggle[open] > summary::before { content: "− "; }
+      .vi-toggle > summary:hover { color: #22C55E; }
+      .vi-toggle .vi-body {
+        margin: 6px 0 0;
+        color: #94A3B8;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        font-family: 'IBM Plex Sans', sans-serif;
+      }
+
+      /* ── Hero "live" indicator (only pulses when data is fresh) ──── */
+      .hero-kicker::before { animation: none; }
+      .hero-wrap.is-live .hero-kicker::before { animation: pulse 2s ease-in-out infinite; }
+
+      /* ── st.metric (still used in Cost tab) ───────────────────────── */
       [data-testid="stMetric"] {
         background: linear-gradient(180deg, #0F172A 0%, #0A1124 100%);
         border: 1px solid #1E293B;
@@ -904,10 +1027,28 @@ if _active_filter_count:
         f'{_active_filter_count} filter(s) active</span>'
     )
 
+# Live indicator: pulse only when scrape ran within the last hour. Beyond that
+# the dot stays still — motion would no longer carry meaning.
+def _is_live() -> bool:
+    from datetime import datetime
+    from pipeline.timeutils import LOCAL_TZ
+    iso = get_last_scrape_iso()
+    if not iso:
+        return False
+    try:
+        last = datetime.fromisoformat(iso.replace("Z", ""))
+    except ValueError:
+        return False
+    age_h = (datetime.now(LOCAL_TZ).replace(tzinfo=None) - last).total_seconds() / 3600
+    return age_h < 1.0
+
+_hero_class = "hero-wrap is-live" if _is_live() else "hero-wrap"
+_kicker_text = "Live · Home Loan Vietnam" if _is_live() else "Today's Briefing · Home Loan Vietnam"
+
 st.html(
     f"""
-    <div class="hero-wrap">
-      <div class="hero-kicker">Today's Briefing · Home Loan Vietnam</div>
+    <div class="{_hero_class}">
+      <div class="hero-kicker">{_kicker_text}</div>
       <h1 class="hero-headline">{_headline}</h1>
       <p class="hero-deck">{_deck}</p>
       <div class="hero-meta">
@@ -946,23 +1087,106 @@ else:
     seekers_p    = int((df_prev["intent"] == "seeking_info").sum())
     neg_p        = int((df_prev["sentiment"] == "negative").sum())
 
-# delta_color="inverse" flips the green/red so that "more complaints" shows
-# red (bad) and "fewer complaints" shows green (good). Same for negative
-# sentiment and competitor promos.
-# Labels stripped of emojis — they don't match Plex Mono and trip the
-# `no-emoji-icons` accessibility rule. Section meaning lives in the
-# uppercase Plex Mono label color and position instead.
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Total Articles",        total,      delta=pct_delta(total, total_p),
-          help=f"Compared to previous {days} days")
-k2.metric("Complaints",            complaints, delta=pct_delta(complaints, complaints_p),
-          delta_color="inverse", help="Pain points + dissatisfaction signals")
-k3.metric("Competitor Promos",     promos,     delta=pct_delta(promos, promos_p),
-          delta_color="inverse", help="Promotional pushes from rival banks")
-k4.metric("Potential Customers",   seekers,    delta=pct_delta(seekers, seekers_p),
-          help="Articles where intent = seeking_info")
-k5.metric("Negative Sentiment",    neg,        delta=pct_delta(neg, neg_p),
-          delta_color="inverse", help="Negative-toned mentions across all sources")
+# ── Sparkline KPI tiles (custom HTML — st.metric can't host inline charts) ─
+# Bloomberg-style: big tabular number + delta + 7-day mini-bars showing trend.
+# Tiles share rendering so any future tile (e.g. "Source-of-truth alerts")
+# can drop in with the same shape.
+def _daily_series(_df: pd.DataFrame, mask=None, n: int = 7) -> list[int]:
+    """Return last `n` daily counts in chronological order (oldest → newest)."""
+    if _df.empty or "scraped_at" not in _df.columns:
+        return [0] * n
+    s = _df[mask] if mask is not None else _df
+    if s.empty:
+        return [0] * n
+    daily = s.groupby(s["scraped_at"].dt.date).size()
+    # Reindex on a complete date range so missing days = 0
+    end_date = daily.index.max()
+    start_date = end_date - pd.Timedelta(days=n - 1)
+    full_range = pd.date_range(start_date, end_date, freq="D").date
+    return daily.reindex(full_range, fill_value=0).tolist()
+
+def _sparkline_svg(values: list[int], color: str, width: int = 88, height: int = 22) -> str:
+    """Inline SVG bar sparkline — matches the Plex Mono pixel-grid vibe."""
+    if not values or max(values) == 0:
+        # Flat baseline if no data — still occupies the vertical slot so
+        # tile heights stay even.
+        bars = "".join(
+            f'<rect x="{i*(width/len(values or [0]))}" y="{height-2}" '
+            f'width="{(width/len(values or [1]))-1.5}" height="2" '
+            f'fill="#1E293B" rx="1"/>'
+            for i in range(len(values) or 7)
+        )
+        return f'<svg width="{width}" height="{height}">{bars}</svg>'
+    vmax = max(values)
+    bar_w = (width / len(values)) - 1.5
+    bars = []
+    for i, v in enumerate(values):
+        h = max(2, (v / vmax) * (height - 2))
+        x = i * (width / len(values))
+        y = height - h
+        # Fade older bars slightly so the trend reads left → right
+        opacity = 0.45 + (i / len(values)) * 0.55
+        bars.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" '
+            f'fill="{color}" opacity="{opacity:.2f}" rx="1"/>'
+        )
+    return f'<svg width="{width}" height="{height}" style="display:block">{"".join(bars)}</svg>'
+
+def _delta_html(curr: int, prev: int, bad_when_up: bool = False) -> str:
+    """Inline delta chip — green if good change, red if bad, grey if neutral."""
+    if curr == 0 and prev == 0:
+        return f'<span style="color:#475569;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem">—</span>'
+    if prev == 0:
+        return (f'<span style="color:#22C55E;font-family:\'IBM Plex Mono\',monospace;'
+                f'font-size:0.7rem;font-weight:500">▲ new</span>')
+    delta_pct = (curr - prev) / prev * 100
+    if abs(delta_pct) < 0.5:
+        return f'<span style="color:#64748B;font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem">→ 0%</span>'
+    is_up = delta_pct > 0
+    good = (not is_up) if bad_when_up else is_up
+    color = "#22C55E" if good else "#EF4444"
+    arrow = "▲" if is_up else "▼"
+    sign = "+" if is_up else ""
+    return (f'<span style="color:{color};font-family:\'IBM Plex Mono\',monospace;'
+            f'font-size:0.72rem;font-weight:500;letter-spacing:0.02em">'
+            f'{arrow} {sign}{delta_pct:.0f}%</span>')
+
+def _kpi_tile(label: str, value: int, prev: int, series: list[int],
+              color: str = "#22C55E", bad_when_up: bool = False) -> str:
+    """Render one KPI tile as a self-contained HTML block."""
+    return (
+        f'<div class="kpi-tile">'
+        f'  <div class="kpi-label">{label}</div>'
+        f'  <div class="kpi-value-row">'
+        f'    <span class="kpi-value">{value:,}</span>'
+        f'    {_delta_html(value, prev, bad_when_up=bad_when_up)}'
+        f'  </div>'
+        f'  <div class="kpi-spark">{_sparkline_svg(series, color)}</div>'
+        f'</div>'
+    )
+
+# Per-metric daily series for the sparklines (last 7 days of the current
+# window — or fewer if the window itself is shorter).
+_spark_n = min(7, days) if days >= 1 else 7
+_s_total      = _daily_series(df, n=_spark_n)
+_s_complaints = _daily_series(df, mask=df["category"] == "complaint", n=_spark_n)
+_s_promos     = _daily_series(df, mask=df["category"] == "promotion", n=_spark_n)
+_s_seekers    = _daily_series(df, mask=df["intent"]   == "seeking_info", n=_spark_n)
+_s_neg        = _daily_series(df, mask=df["sentiment"] == "negative", n=_spark_n)
+
+# Render all five tiles in a single HTML block so the grid is one DOM node
+# (faster, cleaner spacing). Streamlit's col system would also work but adds
+# extra divs and breaks the gap rhythm.
+_kpi_html = (
+    '<div class="kpi-grid">' +
+    _kpi_tile("Total Articles",      total,      total_p,      _s_total,      "#22C55E") +
+    _kpi_tile("Complaints",          complaints, complaints_p, _s_complaints, "#EF4444", bad_when_up=True) +
+    _kpi_tile("Competitor Promos",   promos,     promos_p,     _s_promos,     "#F59E0B", bad_when_up=True) +
+    _kpi_tile("Potential Customers", seekers,    seekers_p,    _s_seekers,    "#22C55E") +
+    _kpi_tile("Negative Sentiment",  neg,        neg_p,        _s_neg,        "#EF4444", bad_when_up=True) +
+    '</div>'
+)
+st.html(_kpi_html)
 
 # Export current filtered articles as CSV — rendered as a tight right-rail
 # action just above the tabs. No lonely-column layout, no separator below.
@@ -1186,11 +1410,17 @@ with tab_action_feed:
             f'</div>'
             # Headline
             f'{title_html}'
-            # Bilingual summary
+            # EN summary always visible. Vietnamese summary collapsed behind
+            # a "+ VI" toggle to keep the queue scannable. Click to expand
+            # if you actually need the source-language text.
             f'<p style="margin:6px 0 4px;color:#CBD5E1;font-size:0.86rem;line-height:1.55;'
-            f'font-family:\'IBM Plex Sans\',sans-serif">EN · {en or "—"}</p>'
-            f'<p style="margin:0 0 14px;color:#94A3B8;font-size:0.82rem;'
-            f'line-height:1.5;font-family:\'IBM Plex Sans\',sans-serif">VI · {vi or "—"}</p>'
+            f'font-family:\'IBM Plex Sans\',sans-serif">{en or "—"}</p>'
+            + (
+                f'<details class="vi-toggle"><summary>VI summary</summary>'
+                f'<p class="vi-body">{vi}</p></details>'
+                if vi else ''
+            ) +
+            f'<div style="height:8px"></div>'
             # Footer meta row
             f'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
             f'padding-top:10px;border-top:1px solid #1A2236">'
@@ -1274,18 +1504,49 @@ with tab_action_feed:
         if df_q.empty:
             st.success("You've cleared every item in this view.")
         else:
-            for _, row in df_q.iterrows():
-                cat = row.get("category") or "general"
-                section_bg     = sections.get(cat, sections["general"])[1]
-                section_accent = sections.get(cat, sections["general"])[2]
-                _render_card(row, section_bg=section_bg, section_accent=section_accent,
-                             show_priority_reasons=True)
-                # Dismiss button under each card
-                b_left, _b_sp = st.columns([1, 7])
-                with b_left:
-                    if st.button("Done", key=f"done_{row['id']}", use_container_width=True):
-                        st.session_state["dismissed_ids"].add(row["id"])
-                        st.rerun()
+            # ── Section bands: split by urgency band ──────────────────────
+            # Priority scores already encode "how urgent": complaint+negative
+            # comes out very negative, neutral general comes out high. Three
+            # buckets that map to how the user actually thinks:
+            #   Urgent  — score < 0   (a complaint or a negative item)
+            #   Watch   — 0..200      (rate signals, competitor moves)
+            #   Routine — >= 200      (everything else surfacing on recency)
+            def _band(score: float) -> str:
+                if score < 0:    return "URGENT"
+                if score < 200:  return "WATCH"
+                return "ROUTINE"
+            df_q["_band"] = df_q["_score"].apply(_band)
+
+            _BAND_META = {
+                "URGENT":  ("Things that look bad. Triage first.",   "#EF4444"),
+                "WATCH":   ("Worth a glance — rate signals, competitor moves.", "#F59E0B"),
+                "ROUTINE": ("Background chatter — read if you have time.",      "#64748B"),
+            }
+
+            for band_name in ("URGENT", "WATCH", "ROUTINE"):
+                band_df = df_q[df_q["_band"] == band_name]
+                if band_df.empty:
+                    continue
+                subtitle, band_color = _BAND_META[band_name]
+                st.html(
+                    f'<div class="section-band" style="--band-color:{band_color}">'
+                    f'  <span class="section-band-label">{band_name}</span>'
+                    f'  <span style="color:#94A3B8;font-size:0.78rem;'
+                    f'font-family:\'IBM Plex Sans\',sans-serif">{subtitle}</span>'
+                    f'  <span class="section-band-count">{len(band_df)} item(s)</span>'
+                    f'</div>'
+                )
+                for _, row in band_df.iterrows():
+                    cat = row.get("category") or "general"
+                    section_bg     = sections.get(cat, sections["general"])[1]
+                    section_accent = sections.get(cat, sections["general"])[2]
+                    _render_card(row, section_bg=section_bg, section_accent=section_accent,
+                                 show_priority_reasons=True)
+                    b_left, _b_sp = st.columns([1, 7])
+                    with b_left:
+                        if st.button("Done", key=f"done_{row['id']}", use_container_width=True):
+                            st.session_state["dismissed_ids"].add(row["id"])
+                            st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1293,25 +1554,31 @@ with tab_action_feed:
 # ═══════════════════════════════════════════════════════════
 
 with tab_competitor:
-    # ── Bank reference table ──────────────────────────────────────────────
-    # Note: we used to show a "Promo Rate" / "Max Term" column here, but
-    # banks publish multiple rate tiers (fixed 1/2/3/5 yr + floating) that
-    # change monthly. Storing one number per bank is misleading. If/when
-    # we want live rate intel, the right approach is parsing % values out
-    # of the scraped article titles per bank, not hard-coding in banks.yaml.
-    with st.expander("📚 Bank Reference — Home Loan Products in Vietnam", expanded=False):
+    # Context kicker — matches Analytics tab's pattern.
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:0 0 16px">Competitor lens · Who is the conversation about</div>'
+    )
+
+    # ── Bank reference table (expanded by request — it's reference data) ───
+    # Old promo-rate column was removed: banks publish multiple rate tiers
+    # (fixed 1/2/3/5 yr + floating) that change monthly, so a single number
+    # was misleading.
+    with st.expander("Bank reference — short names + type", expanded=False):
         ref_rows = []
-        TYPE_LABEL = {"state_owned": "🏛️ State", "private": "🏢 Private", "foreign": "🌏 Foreign"}
+        # Plain uppercase codes (mono-friendly) instead of building emojis.
+        TYPE_LABEL = {"state_owned": "STATE",
+                      "private":     "PRIVATE",
+                      "foreign":     "FOREIGN"}
         for short_name, info in banks.items():
             ref_rows.append({
                 "Bank":  short_name,
-                "Type":  TYPE_LABEL.get(info["type"], info["type"]),
+                "Type":  TYPE_LABEL.get(info["type"], info["type"].upper()),
                 "Notes": (info.get("notes") or "").strip()[:160],
             })
         st.dataframe(pd.DataFrame(ref_rows).set_index("Bank"),
                      use_container_width=True, height=420)
-
-    st.divider()
 
     # Explode bank mentions into a flat table
     rows_banks = []
@@ -1334,40 +1601,50 @@ with tab_competitor:
         # know (top topics + sentiment mix) and concrete next steps the user
         # can take. This keeps the tab useful even on quiet days.
         st.html(
-            f"""
-            <div style="background:{THEME["bg_alt"]};border:1px dashed {THEME["hero"]["border"]};
-                        border-radius:14px;padding:24px 28px;text-align:center;margin:8px 0 20px">
-              <div style="font-size:36px;line-height:1">🔍</div>
-              <h3 style="margin:6px 0 4px;color:{THEME["text"]}">No banks mentioned by name</h3>
-              <p style="color:{THEME["text_muted"]};margin:0 0 12px;font-size:14px">
-                In the current date range, the scraped articles didn't reference
-                any of the banks tracked in <code>config/banks.yaml</code>.
-                That can mean a quiet week — or that competitors are being
-                discussed by product names instead of brand names.
+            """
+            <div style="background:linear-gradient(180deg,#0F172A 0%,#0A1124 100%);
+                        border:1px dashed #1E293B;border-radius:12px;
+                        padding:32px 28px;text-align:center;margin:8px 0 20px">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;
+                          color:#64748B;letter-spacing:0.10em;text-transform:uppercase;
+                          margin-bottom:8px">No bank mentions in this window</div>
+              <h3 style="margin:6px 0 8px;color:#F8FAFC;font-family:'IBM Plex Sans',sans-serif">
+                No banks named by short_name
+              </h3>
+              <p style="color:#94A3B8;margin:0;font-size:0.92rem;
+                        font-family:'IBM Plex Sans',sans-serif;line-height:1.55;max-width:520px;margin:0 auto">
+                The scraped articles didn't reference any bank tracked in
+                <code style="color:#22C55E;background:rgba(34,197,94,0.10);padding:1px 6px;
+                border-radius:3px">config/banks.yaml</code>. Quiet weeks happen — or
+                people may be discussing product names instead of brand names.
               </p>
             </div>
             """
         )
 
-        st.markdown("**Try one of these instead:**")
+        st.html(
+            '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+            'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+            'margin:20px 0 10px">Try one of these</div>'
+        )
         es_c1, es_c2, es_c3 = st.columns(3)
         with es_c1:
             st.markdown(
-                "**📅 Widen the window**  \n"
+                "**Widen the window**  \n"
                 "Switch the date range in the sidebar to **14d** or **30d** — bank mentions "
                 "are bursty around rate announcements and promo seasons."
             )
         with es_c2:
             st.markdown(
-                "**🏷️ Check by category**  \n"
-                "Use the **Category** filter to keep only *promotion* or *bank_comparison* "
-                "articles. If banks are mentioned anywhere, they'll show up there first."
+                "**Filter by category**  \n"
+                "Use the **Category** sidebar filter to keep only *promotion* or *bank_comparison* "
+                "articles. If banks are mentioned, they'll surface there first."
             )
         with es_c3:
             st.markdown(
-                "**📚 Browse what's there**  \n"
-                "Head to the **Overview** tab to see the top phrases word cloud — "
-                "it surfaces whichever bank names *are* being mentioned, even if not in `banks.yaml`."
+                "**Check word cloud**  \n"
+                "Head to **Analytics → Language** — it surfaces whichever bank names "
+                "*are* being mentioned, even if not in `banks.yaml`."
             )
 
         # Show top topics in current data as a fallback signal
@@ -1487,62 +1764,16 @@ with tab_competitor:
 # ═══════════════════════════════════════════════════════════
 
 with tab_overview:
-    # ── Hero "Today's signal" card ──────────────────────────────────────────
-    # One-glance summary of what changed period-over-period. Built from the
-    # existing KPI values (no LLM call), so it's instant and free.
+    # The "Today's Signal" hero that used to live here was a near-duplicate of
+    # the main page hero (same KPI deltas, same data). Killed it — the user
+    # already sees the briefing at the top of the page; Analytics is for
+    # drill-down, not re-stating the headline.
 
-    def _delta_phrase(label: str, curr: int, prev: int, bad_when_up: bool) -> str | None:
-        """Render a phrase like '↑ complaints +25%' when the change is material.
-
-        Returns None when the metric is uninteresting (no change, or both 0)
-        so we can skip it in the headline.
-        """
-        if curr == 0 and prev == 0:
-            return None
-        if prev == 0:
-            return None  # avoid divide-by-zero / misleading 'infinity%'
-        delta_pct = (curr - prev) / prev * 100
-        if abs(delta_pct) < 5:
-            return None  # noise — skip
-        arrow = "▲" if delta_pct > 0 else "▼"
-        good = (delta_pct < 0) if bad_when_up else (delta_pct > 0)
-        color = THEME["success"] if good else THEME["danger"]
-        sign = "+" if delta_pct > 0 else ""
-        return (f'<span style="color:{color};font-weight:600">'
-                f'{arrow} {label} {sign}{delta_pct:.0f}%</span>')
-
-    _movers = [
-        _delta_phrase("complaints",         complaints, complaints_p, bad_when_up=True),
-        _delta_phrase("negative sentiment", neg,        neg_p,        bad_when_up=True),
-        _delta_phrase("competitor promos",  promos,     promos_p,     bad_when_up=True),
-        _delta_phrase("potential customers", seekers,   seekers_p,    bad_when_up=False),
-    ]
-    _movers = [m for m in _movers if m]
-    if _movers:
-        _movers_html = " · ".join(_movers[:3])
-    else:
-        _movers_html = f'<span style="color:{THEME["text_muted"]}">no material change vs last period</span>'
-
-    _top_source = ""
-    if not df.empty and "source" in df.columns:
-        _top_source = df["source"].value_counts().idxmax()
-
+    # Quick context block: what to expect on this tab.
     st.html(
-        f"""
-        <div style="background:{THEME["hero"]["bg_gradient"]};
-                    border:1px solid {THEME["hero"]["border"]};
-                    border-left:6px solid {THEME["hero"]["accent"]};
-                    border-radius:14px;padding:18px 22px;margin-bottom:18px">
-          <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;
-                      color:{THEME["hero"]["kicker_fg"]};font-weight:700;margin-bottom:6px">
-            ✨ Today's signal · last {days} days
-          </div>
-          <div style="font-size:18px;color:{THEME["text"]};line-height:1.5;font-weight:500">
-            <strong>{total}</strong> articles tracked{(', leading source <strong>' + _top_source + '</strong>') if _top_source else ''}.
-            Movers: {_movers_html}.
-          </div>
-        </div>
-        """
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:0 0 18px">Composition · Drill into the shape of the conversation</div>'
     )
 
     c1, c2 = st.columns(2)
@@ -1596,18 +1827,22 @@ with tab_overview:
     # Quick sanity check on the source-mix: lets the reader see at a glance
     # if Facebook bank pages are starting to dominate the article stream,
     # which inflates the "positive sentiment" and "competitor promo" KPIs.
-    st.subheader("Volume by Source Type")
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:18px 0 8px">Source mix · Where is this conversation living</div>'
+    )
     src_type_df = (
         df["source_type"]
-        .map({"facebook": "📘 Facebook", "forum": "💬 Forum", "news": "📰 News"})
+        .map({"facebook": "Facebook", "forum": "Forum", "news": "News"})
         .value_counts()
         .reset_index()
     )
     src_type_df.columns = ["Source Type", "Articles"]
     SOURCE_TYPE_COLORS = {
-        "📘 Facebook": THEME["info"],         # blue — distinct from brand greens
-        "💬 Forum":    THEME["primary"],      # brand green — the customer-voice channel
-        "📰 News":     THEME["text_subtle"],  # neutral grey
+        "Facebook": "#3B82F6",  # blue
+        "Forum":    "#22C55E",  # accent green — customer-voice channel
+        "News":     "#94A3B8",  # neutral grey
     }
     fig_st = px.bar(
         src_type_df, x="Articles", y="Source Type", orientation="h",
@@ -1619,7 +1854,11 @@ with tab_overview:
     st.plotly_chart(fig_st, use_container_width=True)
 
     # Volume by day
-    st.subheader("Article Volume by Day")
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:24px 0 8px">Trend · Volume by day, stacked by sentiment</div>'
+    )
     vol_df = df.copy()
     vol_df["date"] = vol_df["scraped_at"].dt.strftime("%d %b")
     vol_day = vol_df.groupby(["date", "sentiment"]).size().reset_index(name="Count")
@@ -1638,7 +1877,11 @@ with tab_overview:
     st.plotly_chart(fig, use_container_width=True)
 
     # ── Word cloud ────────────────────────────────────────────────────────
-    st.divider()
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:32px 0 8px">Language · What words are people adding</div>'
+    )
     wc_col1, wc_col2 = st.columns([1, 5])
     with wc_col1:
         st.subheader("Top Phrases")
@@ -1680,21 +1923,49 @@ with tab_insights:
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from pipeline.insight_agent import generate_report, get_latest_report, markdown_to_html
 
-    st.subheader("🧠 Social Listening Expert")
-    st.caption(
-        "AI-generated weekly brief for the home loan product team — "
-        "plain-English insights and prioritised actions."
+    # ── Premium "AI brief" action card ──────────────────────────────────────
+    # The old subheader + scattered button felt like a debug screen. Wrap the
+    # whole interaction (period selector + generate CTA + helper copy) in one
+    # bordered action card so it reads as a single "request a briefing" unit.
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:0 0 14px">AI briefing · Claude-generated weekly intelligence</div>'
     )
 
-    col_btn, col_days, col_spacer = st.columns([1, 1, 4])
+    st.html(
+        """
+        <div style="background:linear-gradient(135deg,rgba(34,197,94,0.06) 0%,transparent 55%),
+                      linear-gradient(180deg,#0F172A 0%,#0A1124 100%);
+                    border:1px solid #1E293B;border-radius:12px;
+                    padding:24px 28px;margin-bottom:18px;
+                    box-shadow:0 1px 0 rgba(255,255,255,0.03) inset,0 12px 32px rgba(0,0,0,0.35);
+                    position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:1px;
+                      background:linear-gradient(90deg,transparent,rgba(34,197,94,0.4),transparent)"></div>
+          <h2 style="margin:0 0 6px;font-family:'IBM Plex Sans',sans-serif;
+                     font-weight:700;font-size:1.35rem;color:#F8FAFC;letter-spacing:-0.015em">
+            Generate an AI brief
+          </h2>
+          <p style="margin:0;color:#94A3B8;font-size:0.95rem;line-height:1.55;
+                    font-family:'IBM Plex Sans',sans-serif;max-width:640px">
+            Claude reads every article in your selected window, surfaces the dominant
+            themes, ranks competitor moves by impact, and writes a plain-English action
+            list. Streams in ~30s. Saved to <code style="color:#22C55E;background:rgba(34,197,94,0.10);
+            padding:1px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace">data/reports/</code>.
+          </p>
+        </div>
+        """
+    )
+
+    col_days, col_btn, col_spacer = st.columns([1.5, 1.5, 3])
     with col_days:
         report_days = st.selectbox("Period", [7, 14, 30], index=0,
-                                   format_func=lambda d: f"Last {d} days")
+                                   format_func=lambda d: f"Last {d} days",
+                                   label_visibility="collapsed")
     with col_btn:
-        st.write("")
-        run_report = st.button("⚡ Generate Report", type="primary")
-
-    st.divider()
+        run_report = st.button("Generate brief", type="primary",
+                               use_container_width=True)
 
     report_md: str | None = None
 
@@ -1702,7 +1973,7 @@ with tab_insights:
         report_placeholder = st.empty()
         accumulated: list[str] = []
 
-        with st.spinner("Analysing articles and generating insights…"):
+        with st.spinner("Reading articles · ranking themes · drafting…"):
             def _stream_to_ui(chunk: str):
                 accumulated.append(chunk)
                 report_placeholder.markdown("".join(accumulated))
@@ -1710,28 +1981,34 @@ with tab_insights:
             try:
                 report_md = generate_report(days=report_days, stream_callback=_stream_to_ui)
                 report_placeholder.markdown(report_md)
-                st.success("Report saved to data/reports/")
+                st.success("Brief saved to data/reports/")
                 st.cache_data.clear()
             except Exception as e:
-                st.error(f"Failed to generate report: {e}")
+                st.error(f"Failed to generate brief: {e}")
     else:
         report_md = get_latest_report()
         if report_md:
+            st.html(
+                '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+                'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+                'margin:18px 0 10px">Latest brief</div>'
+            )
             st.markdown(report_md)
         else:
-            st.info(
-                "No report generated yet. "
-                "Click **⚡ Generate Report** above to create your first insight brief."
-            )
+            st.info("No brief generated yet. Pick a period and click **Generate brief**.")
 
     if report_md:
         from pipeline.timeutils import now_local
         stamp = now_local().strftime("%Y%m%d_%H%M")
-        st.divider()
-        dl1, dl2, dl_spacer = st.columns([1, 1, 4])
+        st.html(
+            '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+            'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+            'margin:18px 0 10px">Export</div>'
+        )
+        dl1, dl2, _ = st.columns([1, 1, 4])
         with dl1:
             st.download_button(
-                "⬇️ Markdown (.md)",
+                "Markdown (.md)",
                 data=report_md.encode("utf-8"),
                 file_name=f"insight_report_{stamp}.md",
                 mime="text/markdown",
@@ -1739,7 +2016,7 @@ with tab_insights:
             )
         with dl2:
             st.download_button(
-                "⬇️ HTML (print → PDF)",
+                "HTML → PDF",
                 data=markdown_to_html(report_md).encode("utf-8"),
                 file_name=f"insight_report_{stamp}.html",
                 mime="text/html",
