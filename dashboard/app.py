@@ -65,20 +65,15 @@ from pipeline.config_loader import load_banks as _load_banks_yaml  # noqa: E402
 from pipeline.config_loader import load_keywords as _load_keywords_yaml  # noqa: E402
 from pipeline.timeutils import days_ago_iso  # noqa: E402
 
+from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR  # noqa: E402
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
 
 # ── Styling ──────────────────────────────────────────────────────────────────
+# SENT_COLOR / CAT_COLOR are imported from dashboard.theme — that module is the
+# single source of truth for the KBank-Vietnam visual identity. Adjust palettes
+# there, not here.
 
-SENT_COLOR  = {"positive": "#27ae60", "neutral": "#95a5a6", "negative": "#e74c3c"}
 SENT_ICON   = {"positive": "😊", "neutral": "😐", "negative": "😞"}
-CAT_COLOR   = {
-    "interest_rate":   "#2980b9",
-    "loan_approval":   "#8e44ad",
-    "bank_comparison": "#d35400",
-    "complaint":       "#e74c3c",
-    "promotion":       "#16a085",
-    "general":         "#7f8c8d",
-}
 INTENT_LABEL = {
     "seeking_info":       "🔍 Seeking Info",
     "sharing_experience": "💬 Experience",
@@ -164,15 +159,19 @@ def get_last_scrape_iso() -> str | None:
 
 
 def _scrape_health_badge() -> str:
-    """HTML badge showing how stale the latest scrape is."""
+    """HTML badge showing how stale the latest scrape is.
+
+    Uses the functional success/warning/danger tokens from theme.py so the
+    badge re-skins automatically if the brand palette ever changes again.
+    """
     from datetime import datetime
     from pipeline.timeutils import LOCAL_TZ
 
     last_iso = get_last_scrape_iso()
     if not last_iso:
-        return ('<span style="background:#fef3c7;color:#92400e;padding:4px 10px;'
-                'border-radius:14px;font-size:13px;font-weight:600">'
-                '⏳ No scrape recorded yet — first scheduled run at 7 AM Vietnam time</span>')
+        return (f'<span style="background:{THEME["warning_bg"]};color:{THEME["warning_fg"]};'
+                f'padding:4px 10px;border-radius:14px;font-size:13px;font-weight:600">'
+                f'⏳ No scrape recorded yet — first scheduled run at 7 AM Vietnam time</span>')
 
     try:
         last_dt = datetime.fromisoformat(last_iso.replace("Z", ""))
@@ -183,11 +182,11 @@ def _scrape_health_badge() -> str:
     hours = (now - last_dt).total_seconds() / 3600
 
     if hours < 25:  # daily cron + a little wiggle room
-        bg, fg, icon, label = "#d1fae5", "#065f46", "🟢", f"{int(max(hours, 0))}h ago"
+        bg, fg, icon, label = THEME["success_bg"], THEME["success_fg"], "🟢", f"{int(max(hours, 0))}h ago"
     elif hours < 49:
-        bg, fg, icon, label = "#fef3c7", "#92400e", "🟡", f"{int(hours)}h ago — may be stale"
+        bg, fg, icon, label = THEME["warning_bg"], THEME["warning_fg"], "🟡", f"{int(hours)}h ago — may be stale"
     else:
-        bg, fg, icon, label = "#fee2e2", "#991b1b", "🔴", f"{int(hours/24)}d ago — automation may be broken"
+        bg, fg, icon, label = THEME["danger_bg"], THEME["danger_fg"], "🔴", f"{int(hours/24)}d ago — automation may be broken"
 
     return (f'<span style="background:{bg};color:{fg};padding:4px 10px;'
             f'border-radius:14px;font-size:13px;font-weight:600">'
@@ -417,13 +416,19 @@ tab_cost         = _tabs[4] if _admin_mode else None
 
 with tab_action_feed:
     # ── Section visual config (used by both view modes) ─────────────────────
+    # Headings stay verbatim (emojis preserved); colors come from THEME["category"]
+    # so a future palette change updates everything in one place.
+    _SECTION_HEADINGS = {
+        "complaint":       "🚨 Complaints & Pain Points",
+        "interest_rate":   "💰 Rate Intelligence",
+        "promotion":       "📢 Competitor Promotions",
+        "loan_approval":   "📑 Loan Approval Topics",
+        "bank_comparison": "🏦 Bank Comparisons",
+        "general":         "📰 General News",
+    }
     sections = {
-        "complaint":      ("🚨 Complaints & Pain Points",   "#fdf2f2", "#e74c3c"),
-        "interest_rate":  ("💰 Rate Intelligence",           "#f0f7ff", "#2980b9"),
-        "promotion":      ("📢 Competitor Promotions",       "#f0fff8", "#16a085"),
-        "loan_approval":  ("📑 Loan Approval Topics",        "#faf5ff", "#8e44ad"),
-        "bank_comparison":("🏦 Bank Comparisons",            "#fff8f0", "#d35400"),
-        "general":        ("📰 General News",                "#fafafa", "#7f8c8d"),
+        cat: (_SECTION_HEADINGS[cat], THEME["category"][cat]["bg"], THEME["category"][cat]["accent"])
+        for cat in _SECTION_HEADINGS
     }
     cat_rank = {c: i for i, c in enumerate(PRIORITY_ORDER)}
 
@@ -433,10 +438,11 @@ with tab_action_feed:
 
     # Per-sentiment card tint overrides the section default so negative items
     # stand out even when grouped under a "neutral" category like General News.
+    # Mapped onto the functional danger/success tokens for brand alignment.
     SENT_BG = {
-        "negative": ("#fdecea", "#c0392b"),
-        "positive": ("#eafaf1", "#1e8449"),
-        "neutral":  (None,      None),
+        "negative": (THEME["danger_bg"],  THEME["danger_fg"]),
+        "positive": (THEME["success_bg"], THEME["success_fg"]),
+        "neutral":  (None,                None),
     }
 
     # Session-scoped dismissal: marking an item "Done" hides it for this
@@ -490,19 +496,19 @@ with tab_action_feed:
         intent  = INTENT_LABEL.get(row.get("intent") or "", "")
         date    = row["scraped_at"].strftime("%d %b %H:%M") if pd.notna(row["scraped_at"]) else ""
         b_names = row.get("banks_mentioned") or []
-        sent_bg = SENT_COLOR.get(sent, "#95a5a6")
+        sent_bg = SENT_COLOR.get(sent, THEME["text_subtle"])
 
         bank_badges = "".join(
-            f'<span style="background:#eaf4fb;color:#2471a3;padding:2px 8px;'
-            f'border-radius:12px;font-size:11px;margin-right:4px">{b}</span>'
+            f'<span style="background:{THEME["info_bg"]};color:{THEME["info_fg"]};'
+            f'padding:2px 8px;border-radius:12px;font-size:11px;margin-right:4px">{b}</span>'
             for b in b_names
         )
         reason_badges = ""
         if show_priority_reasons:
             reasons = _priority_reasons(row)
             reason_badges = "".join(
-                f'<span style="background:#fff3e0;color:#a04000;padding:2px 8px;'
-                f'border-radius:12px;font-size:11px;margin-right:4px;font-weight:600">{r}</span>'
+                f'<span style="background:{THEME["warning_bg"]};color:{THEME["warning_fg"]};'
+                f'padding:2px 8px;border-radius:12px;font-size:11px;margin-right:4px;font-weight:600">{r}</span>'
                 for r in reasons
             )
 
@@ -512,18 +518,18 @@ with tab_action_feed:
         # of the dashboard.
         title_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="color:#1a1a1a;font-weight:700;font-size:15px;text-decoration:none">{title}</a>'
+            f'style="color:{THEME["text"]};font-weight:700;font-size:15px;text-decoration:none">{title}</a>'
             if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
         )
         src_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="background:#ecf0f1;color:#555;padding:2px 8px;'
+            f'style="background:{THEME["bg_alt"]};color:{THEME["text_muted"]};padding:2px 8px;'
             f'border-radius:12px;font-size:11px;text-decoration:none">🔗 {src}</a>'
-            if url else _badge(src, "#ecf0f1", "#555")
+            if url else _badge(src, THEME["bg_alt"], THEME["text_muted"])
         )
 
         card = (
-            f'<div style="background:{row_bg};border:1px solid #e8e8e8;'
+            f'<div style="background:{row_bg};border:1px solid {THEME["card_border"]};'
             f'border-left:5px solid {row_accent};border-radius:10px;'
             f'padding:14px 18px;margin-bottom:10px;'
             f'box-shadow:0 1px 3px rgba(0,0,0,0.05)">'
@@ -533,13 +539,13 @@ with tab_action_feed:
             f'{_badge(SENT_ICON.get(sent,"") + " " + sent, sent_bg)}'
             f'{src_html}{bank_badges}{reason_badges}'
             f'</div>'
-            f'<span style="color:#999;font-size:12px">{date}</span>'
+            f'<span style="color:{THEME["text_subtle"]};font-size:12px">{date}</span>'
             f'</div>'
             f'{title_html}'
-            f'<p style="margin:8px 0 3px;color:#2c3e50;font-size:14px">&#127468;&#127463; {en or "&mdash;"}</p>'
-            f'<p style="margin:0;color:#666;font-size:13px;font-style:italic">&#127483;&#127475; {vi or "&mdash;"}</p>'
+            f'<p style="margin:8px 0 3px;color:{THEME["text"]};font-size:14px">&#127468;&#127463; {en or "&mdash;"}</p>'
+            f'<p style="margin:0;color:{THEME["text_muted"]};font-size:13px;font-style:italic">&#127483;&#127475; {vi or "&mdash;"}</p>'
             f'<div style="margin-top:8px">'
-            f'<span style="background:#f4f4f4;color:#555;padding:2px 8px;'
+            f'<span style="background:{THEME["bg_alt"]};color:{THEME["text_muted"]};padding:2px 8px;'
             f'border-radius:12px;font-size:11px">{intent}</span>'
             f'</div></div>'
         )
@@ -653,12 +659,12 @@ with tab_competitor:
         # know (top topics + sentiment mix) and concrete next steps the user
         # can take. This keeps the tab useful even on quiet days.
         st.html(
-            """
-            <div style="background:#f8f9fb;border:1px dashed #d0d4dc;border-radius:14px;
-                        padding:24px 28px;text-align:center;margin:8px 0 20px">
+            f"""
+            <div style="background:{THEME["bg_alt"]};border:1px dashed {THEME["hero"]["border"]};
+                        border-radius:14px;padding:24px 28px;text-align:center;margin:8px 0 20px">
               <div style="font-size:36px;line-height:1">🔍</div>
-              <h3 style="margin:6px 0 4px;color:#1a1f2c">No banks mentioned by name</h3>
-              <p style="color:#5a6473;margin:0 0 12px;font-size:14px">
+              <h3 style="margin:6px 0 4px;color:{THEME["text"]}">No banks mentioned by name</h3>
+              <p style="color:{THEME["text_muted"]};margin:0 0 12px;font-size:14px">
                 In the current date range, the scraped articles didn't reference
                 any of the banks tracked in <code>config/banks.yaml</code>.
                 That can mean a quiet week — or that competitors are being
@@ -706,7 +712,15 @@ with tab_competitor:
             vol = bdf["bank"].value_counts().reset_index()
             vol.columns = ["Bank", "Mentions"]
             # Colour by type
-            type_color = {"state_owned": "#2980b9", "private": "#27ae60", "foreign": "#8e44ad"}
+            # Three bank types — distinguishable colors that survive being seen
+            # next to each other in the legend. info=blue is brand-friendly,
+            # primary_light=mid-green stays on-brand, warning=amber is the
+            # third leg of the contrast triangle.
+            type_color = {
+                "state_owned": THEME["info"],
+                "private":     THEME["primary_light"],
+                "foreign":     THEME["warning"],
+            }
             vol["type"] = vol["Bank"].map(lambda b: banks.get(b, {}).get("type", "private"))
             vol["color"] = vol["type"].map(type_color)
             fig = px.bar(vol, x="Mentions", y="Bank", orientation="h",
@@ -757,24 +771,24 @@ with tab_competitor:
         sel_bank = st.selectbox("Select bank", sorted(bdf["bank"].unique()))
         bank_articles = bdf[bdf["bank"] == sel_bank].sort_values("date", ascending=False)
         for _, r in bank_articles.iterrows():
-            sent_bg = SENT_COLOR.get(r["sentiment"], "#95a5a6")
+            sent_bg = SENT_COLOR.get(r["sentiment"], THEME["text_subtle"])
             date_str = r["date"].strftime("%d %b") if pd.notna(r["date"]) else ""
             title_html = (
                 f'<a href="{r["url"]}" target="_blank" rel="noopener noreferrer" '
-                f'style="color:#1a1a1a;font-weight:600;font-size:14px;text-decoration:none">{r["title"]}</a>'
+                f'style="color:{THEME["text"]};font-weight:600;font-size:14px;text-decoration:none">{r["title"]}</a>'
                 if r["url"] else f'<span style="font-weight:600">{r["title"]}</span>'
             )
             card2 = (
-                f'<div style="border:1px solid #e8e8e8;border-radius:8px;'
-                f'padding:12px 16px;margin-bottom:8px;background:#fff">'
+                f'<div style="border:1px solid {THEME["card_border"]};border-radius:8px;'
+                f'padding:12px 16px;margin-bottom:8px;background:{THEME["card_bg"]}">'
                 f'<div style="margin-bottom:6px">'
                 f'<span style="background:{sent_bg};color:white;padding:2px 8px;'
                 f'border-radius:12px;font-size:11px;font-weight:600">'
                 f'{SENT_ICON.get(r["sentiment"],"")} {r["sentiment"]}</span>'
-                f'<span style="color:#999;font-size:12px;margin-left:8px">{date_str}</span>'
+                f'<span style="color:{THEME["text_subtle"]};font-size:12px;margin-left:8px">{date_str}</span>'
                 f'</div>'
                 f'{title_html}'
-                f'<p style="margin:6px 0 0;color:#555;font-size:13px">&#127468;&#127463; {r["summary_en"] or "&mdash;"}</p>'
+                f'<p style="margin:6px 0 0;color:{THEME["text_muted"]};font-size:13px">&#127468;&#127463; {r["summary_en"] or "&mdash;"}</p>'
                 f'</div>'
             )
             # See _render_card() — st.markdown preserves target="_blank",
@@ -807,7 +821,7 @@ with tab_overview:
             return None  # noise — skip
         arrow = "▲" if delta_pct > 0 else "▼"
         good = (delta_pct < 0) if bad_when_up else (delta_pct > 0)
-        color = "#1e8449" if good else "#c0392b"
+        color = THEME["success"] if good else THEME["danger"]
         sign = "+" if delta_pct > 0 else ""
         return (f'<span style="color:{color};font-weight:600">'
                 f'{arrow} {label} {sign}{delta_pct:.0f}%</span>')
@@ -822,7 +836,7 @@ with tab_overview:
     if _movers:
         _movers_html = " · ".join(_movers[:3])
     else:
-        _movers_html = '<span style="color:#7f8c8d">no material change vs last period</span>'
+        _movers_html = f'<span style="color:{THEME["text_muted"]}">no material change vs last period</span>'
 
     _top_source = ""
     if not df.empty and "source" in df.columns:
@@ -830,14 +844,15 @@ with tab_overview:
 
     st.html(
         f"""
-        <div style="background:linear-gradient(135deg,#fff5f5 0%,#fff 60%);
-                    border:1px solid #f1d4d4;border-left:6px solid #e63946;
+        <div style="background:{THEME["hero"]["bg_gradient"]};
+                    border:1px solid {THEME["hero"]["border"]};
+                    border-left:6px solid {THEME["hero"]["accent"]};
                     border-radius:14px;padding:18px 22px;margin-bottom:18px">
           <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;
-                      color:#9b1c1c;font-weight:700;margin-bottom:6px">
+                      color:{THEME["hero"]["kicker_fg"]};font-weight:700;margin-bottom:6px">
             ✨ Today's signal · last {days} days
           </div>
-          <div style="font-size:18px;color:#1a1f2c;line-height:1.5;font-weight:500">
+          <div style="font-size:18px;color:{THEME["text"]};line-height:1.5;font-weight:500">
             <strong>{total}</strong> articles tracked{(', leading source <strong>' + _top_source + '</strong>') if _top_source else ''}.
             Movers: {_movers_html}.
           </div>
@@ -876,7 +891,7 @@ with tab_overview:
         id_.columns = ["Intent", "Count"]
         id_["Intent"] = id_["Intent"].map(INTENT_LABEL).fillna(id_["Intent"])
         fig = px.bar(id_, x="Count", y="Intent", orientation="h", height=250,
-                     color_discrete_sequence=["#5dade2"])
+                     color_discrete_sequence=[THEME["primary_light"]])
         fig.update_layout(showlegend=False, margin=dict(t=20,b=0,l=0,r=0),
                           yaxis_title=None, xaxis_title=None)
         st.plotly_chart(fig, use_container_width=True)
@@ -1097,7 +1112,7 @@ def _render_cost_tab():
             svc.columns = ["Service", "Cost (USD)"]
             fig = px.bar(svc, x="Service", y="Cost (USD)",
                          color="Service", height=260,
-                         color_discrete_sequence=["#2980b9", "#16a085", "#8e44ad"])
+                         color_discrete_sequence=[THEME["info"], THEME["primary"], THEME["warning"]])
             fig.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0))
             st.plotly_chart(fig, use_container_width=True)
 

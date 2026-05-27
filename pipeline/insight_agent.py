@@ -277,33 +277,73 @@ def markdown_to_html(md_text: str) -> str:
 
     Print-friendly styling so the team can open the file in any browser,
     hit Ctrl/Cmd+P, and save as PDF without needing a server-side PDF lib.
+
+    Branded for KBank Vietnam — accents only (green top banner, h1/h2
+    underlines, blockquote rule). No body-text-on-color so the report
+    prints clean on monochrome printers.
     """
     import markdown as _md
 
+    # Import inline so the pipeline package doesn't need dashboard/ at runtime
+    # for non-report code paths.
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).parent.parent))
+    from dashboard.theme import THEME
+
     body = _md.markdown(md_text, extensions=["tables", "fenced_code", "nl2br"])
+    primary       = THEME["primary"]
+    primary_dark  = THEME["primary_dark"]
+    primary_pale  = THEME["primary_pale"]
+    primary_paler = THEME["primary_paler"]
+    text          = THEME["text"]
+    text_muted    = THEME["text_muted"]
+    divider       = THEME["divider"]
     return f"""<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<title>Social Listening Insight Report</title>
+<title>KBank Vietnam — Social Listening Insight Report</title>
 <style>
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
           max-width: 820px; margin: 40px auto; padding: 0 24px;
-          color: #1a1a1a; line-height: 1.6; }}
-  h1 {{ font-size: 28px; margin-bottom: 4px; }}
-  h2 {{ border-bottom: 1px solid #eee; padding-bottom: 6px; margin-top: 36px; font-size: 20px; }}
-  h3 {{ margin-top: 24px; font-size: 16px; }}
-  code, pre {{ background: #f6f6f6; padding: 2px 6px; border-radius: 4px; font-size: 0.92em; }}
+          color: {text}; line-height: 1.6; }}
+  .brand-banner {{
+    border-top: 6px solid {primary};
+    margin: -40px -24px 32px;
+    padding: 14px 24px 12px;
+    background: {primary_paler};
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: {primary_dark};
+  }}
+  h1 {{ font-size: 28px; margin-bottom: 4px;
+        color: {primary_dark};
+        border-bottom: 3px solid {primary};
+        padding-bottom: 8px; }}
+  h2 {{ border-bottom: 1px solid {primary_pale}; padding-bottom: 6px;
+        margin-top: 36px; font-size: 20px;
+        color: {primary_dark}; }}
+  h3 {{ margin-top: 24px; font-size: 16px; color: {text}; }}
+  code, pre {{ background: {primary_paler}; padding: 2px 6px;
+               border-radius: 4px; font-size: 0.92em; }}
   pre {{ padding: 12px; overflow-x: auto; }}
-  blockquote {{ border-left: 3px solid #ccc; margin: 0; padding-left: 16px; color: #555; }}
+  blockquote {{ border-left: 3px solid {primary}; margin: 0;
+                padding-left: 16px; color: {text_muted}; }}
   table {{ border-collapse: collapse; margin: 12px 0; width: 100%; }}
-  th, td {{ border: 1px solid #ddd; padding: 6px 12px; text-align: left; }}
-  th {{ background: #fafafa; }}
-  hr {{ border: none; border-top: 1px solid #eee; margin: 24px 0; }}
-  @media print {{ body {{ margin: 20px; max-width: none; }} }}
+  th, td {{ border: 1px solid {divider}; padding: 6px 12px; text-align: left; }}
+  th {{ background: {primary_pale}; color: {primary_dark}; }}
+  hr {{ border: none; border-top: 1px solid {divider}; margin: 24px 0; }}
+  @media print {{
+    body {{ margin: 20px; max-width: none; }}
+    .brand-banner {{ margin: 0 0 24px; }}
+  }}
 </style>
 </head>
 <body>
+<div class="brand-banner">KBank Vietnam · Social Listening</div>
 {body}
 </body>
 </html>"""

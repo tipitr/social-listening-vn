@@ -13,7 +13,16 @@ import re
 from collections import Counter
 from typing import Iterable
 
+from matplotlib.colors import LinearSegmentedColormap
 from wordcloud import WordCloud
+
+# KBank-Vietnam green ramp for the word cloud. Avoid matplotlib's built-in
+# "Greens" — it bottoms out near-white and the lightest words go invisible on
+# the white background. Our ramp starts at primary_light so every word stays
+# readable.
+_KBANK_GREEN_CMAP = LinearSegmentedColormap.from_list(
+    "kbank_green", ["#3FAE52", "#138F2D", "#0E6B22", "#094D18"]
+)
 
 # Common Vietnamese function words. Kept here (not in keywords.yaml) because
 # they're a property of the language, not of the home-loan domain.
@@ -125,7 +134,7 @@ def render_png(
         width=width,
         height=height,
         background_color="white",
-        colormap="viridis",
+        colormap=_KBANK_GREEN_CMAP,
         prefer_horizontal=0.9,
         relative_scaling=0.4,
         min_font_size=10,

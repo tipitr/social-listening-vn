@@ -6,16 +6,17 @@ enableXsrfProtection = false
 serverAddress = "vowel-strongman-relearn.ngrok-free.dev"
 serverPort = 443
 
-# ── Brand theme ──────────────────────────────────────────────────────────────
-# Streamlit 1.35 only supports a single [theme] block. Users can still toggle
-# dark mode via the hamburger menu → Settings; it falls back to Streamlit's
-# default dark palette. Upgrade to Streamlit ≥ 1.41 to enable a custom
-# [theme.dark] variant.
+# ── Brand theme — KBank Vietnam ─────────────────────────────────────────────
+# Anchored on the public KBank brand green (#138F2D). Affects Streamlit-managed
+# surfaces our HTML doesn't reach: sidebar buttons, focused-input rings, slider
+# thumbs, radio dots, the active-tab underline, st.success/st.error accents.
+# Custom HTML (cards, hero banner, badges) reads from dashboard/theme.py so the
+# two stay in lockstep.
 
 [theme]
 base = "light"
-primaryColor = "#e63946"              # brand red — buttons, focused inputs
+primaryColor = "#138F2D"              # KBank green — buttons, focused inputs
 backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f4f6f8"  # sidebar + card wells
+secondaryBackgroundColor = "#F4F6F4"  # sidebar + card wells (warm-leaning grey)
 textColor = "#1a1f2c"
 font = "sans serif"
