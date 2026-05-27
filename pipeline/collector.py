@@ -112,9 +112,16 @@ def collect_all() -> int:
         from scrapers.forums import scrape as scrape_forums
         articles = scrape_news() + scrape_forums()
 
+    # Two Facebook backends — pick whichever has credentials.
+    # Meta Graph API is the canonical path but App ID + Secret review can take
+    # weeks. RapidAPI "Facebook Scraper3" is the bridge — same output shape,
+    # 5-minute setup. If both are set, the Meta one wins (more reliable).
     if os.getenv("FACEBOOK_ACCESS_TOKEN") or os.getenv("FACEBOOK_APP_ID"):
         from scrapers.facebook import scrape as scrape_facebook
         articles += scrape_facebook()
+    elif os.getenv("RAPIDAPI_KEY"):
+        from scrapers.facebook_scraper3 import scrape as scrape_facebook_rapid
+        articles += scrape_facebook_rapid()
 
     inserted = save(articles)
 
