@@ -17,7 +17,7 @@ from pipeline import db  # noqa: E402
 from pipeline.config_loader import load_banks as _load_banks_yaml  # noqa: E402
 from pipeline.timeutils import days_ago_iso, now_local  # noqa: E402
 
-load_dotenv()
+load_dotenv(override=True)  # see pipeline/categorizer.py for rationale
 
 REPORTS_DIR = Path(__file__).parent.parent / "data" / "reports"
 

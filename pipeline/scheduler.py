@@ -8,7 +8,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)  # see pipeline/categorizer.py for rationale
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

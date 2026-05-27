@@ -13,7 +13,9 @@ from pipeline import db
 from pipeline.collector import init_db, log_usage
 from pipeline.config_loader import load_settings
 
-load_dotenv()
+# override=True so an empty shell-exported ANTHROPIC_API_KEY (e.g. from a
+# stale ~/.zshrc export) doesn't shadow the real value in .env.
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 

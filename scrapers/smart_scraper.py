@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.config_loader import load_keywords, load_settings, load_sources  # noqa: E402
 from pipeline.timeutils import now_iso  # noqa: E402
 
-load_dotenv()
+load_dotenv(override=True)  # see pipeline/categorizer.py for rationale
 
 logger = logging.getLogger(__name__)
 

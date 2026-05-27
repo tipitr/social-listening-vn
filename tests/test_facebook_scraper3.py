@@ -76,13 +76,19 @@ def mock_requests(monkeypatch):
 # ─── Tests ──────────────────────────────────────────────────────────────────
 
 def test_no_api_key_returns_empty(monkeypatch):
-    """When RAPIDAPI_KEY is unset, the scraper must no-op (no crash, no calls)."""
-    monkeypatch.delenv("RAPIDAPI_KEY", raising=False)
+    """When RAPIDAPI_KEY is empty/unset, the scraper must no-op (no crash).
 
+    SUBTLETY: the module calls ``load_dotenv(override=True)`` at import time
+    to defeat a stale-shell-empty-var bug (see test_dotenv_override.py). That
+    means *any* setenv/delenv we do BEFORE importing the module gets
+    overwritten by the real .env value. We sidestep this by:
+      1. Letting the module import (and load .env) happen first.
+      2. THEN monkeypatching the env to "" so ``_api_key()`` returns None.
+    monkeypatch.setenv records the original value and restores it on teardown,
+    so the next test still sees the real key.
+    """
     from scrapers import facebook_scraper3
-    # Reload because the module may read RAPIDAPI_KEY at import-time
-    import importlib
-    importlib.reload(facebook_scraper3)
+    monkeypatch.setenv("RAPIDAPI_KEY", "")   # blank AFTER import
 
     result = facebook_scraper3.scrape()
     assert result == [], "Without a key, scrape() must return [] and never raise."

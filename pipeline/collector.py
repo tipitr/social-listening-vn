@@ -9,7 +9,7 @@ from pipeline import db
 from pipeline.config_loader import load_settings
 from pipeline.timeutils import days_ago_iso, now_iso
 
-load_dotenv()
+load_dotenv(override=True)  # see pipeline/categorizer.py for rationale
 
 logger = logging.getLogger(__name__)
 
