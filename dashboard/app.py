@@ -41,6 +41,37 @@ st.html(
       [data-testid="stHeader"] { background: transparent !important; }
       [data-testid="stToolbar"] { background: transparent !important; }
 
+      /* ── Sidebar — dark surface ─────────────────────────────────── */
+      [data-testid="stSidebar"], [data-testid="stSidebarContent"],
+      section[data-testid="stSidebar"] > div {
+        background: #070D1C !important;
+        border-right: 1px solid #1E293B !important;
+      }
+      [data-testid="stSidebar"] * { color: #CBD5E1 !important; }
+      [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
+      [data-testid="stSidebar"] h3, [data-testid="stSidebar"] h4 {
+        color: #F8FAFC !important;
+      }
+      [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong {
+        color: #F8FAFC !important;
+      }
+      [data-testid="stSidebar"] hr { border-top: 1px solid #1E293B !important; }
+      /* Sidebar collapse arrow */
+      [data-testid="stSidebarCollapseButton"] button,
+      [data-testid="collapsedControl"] {
+        background: #070D1C !important;
+        color: #94A3B8 !important;
+      }
+
+      /* ── Plotly charts — eliminate any leftover white edges ─────── */
+      [data-testid="stPlotlyChart"], .stPlotlyChart, .js-plotly-plot,
+      .plotly, .plot-container {
+        background: transparent !important;
+      }
+      .js-plotly-plot .plotly .main-svg { background: transparent !important; }
+      .modebar { background: transparent !important; }
+      .modebar-btn path { fill: #64748B !important; }
+
       /* Headings — Plex Sans bold, tight tracking */
       h1, h2, h3, h4, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
         font-family: 'IBM Plex Sans', sans-serif !important;
@@ -652,14 +683,17 @@ def detect_banks(text: str, banks: dict) -> list[str]:
     return found
 
 
-# ── Sidebar (slim: branding + time range + refresh) ──────────────────────────
-# Filters that depend on loaded data (Source / Sentiment / Category) live in
-# the horizontal filter bar below the header so the sidebar isn't crowded.
+# ── Sidebar — single source of truth for ALL filters ────────────────────────
+# Date range + Source + Sentiment + Category live here together so the user
+# only ever looks in one place to change what they're seeing. The horizontal
+# filter bar that used to sit under the hero is gone.
 
 with st.sidebar:
-    st.markdown("## 🏠 Home Loan Intel")
-    st.caption("Real-time social signal for KBank Vietnam")
+    st.markdown("## Home Loan Intel")
+    st.caption("Social signal · KBank Vietnam")
     st.divider()
+
+    # ── Date range ─────────────────────────────────────────────
     st.markdown("**Date range**")
     _preset_labels = ["Today", "7d", "14d", "30d", "Custom"]
     _preset_days   = {"Today": 1, "7d": 7, "14d": 14, "30d": 30}
@@ -675,13 +709,55 @@ with st.sidebar:
         days = st.slider("Days", 1, 30, 7, label_visibility="collapsed")
     else:
         days = _preset_days[preset]
+
+# Load data here so the rest of the sidebar (which needs source list) can
+# render with knowledge of what's actually in the data set.
+df_all = load_data(days)
+banks  = load_banks()
+
+SENTIMENT_OPTS = ["positive", "neutral", "negative"]
+sources = sorted(df_all["source"].dropna().unique().tolist()) if not df_all.empty else []
+
+# Persist filter selections across reruns
+if "sel_src"  not in st.session_state: st.session_state["sel_src"]  = sources
+if "sel_sent" not in st.session_state: st.session_state["sel_sent"] = SENTIMENT_OPTS[:]
+if "sel_cat"  not in st.session_state: st.session_state["sel_cat"]  = PRIORITY_ORDER[:]
+# Reconcile sources if the underlying list changed (e.g. new source added)
+st.session_state["sel_src"] = [s for s in st.session_state["sel_src"] if s in sources] or sources
+
+with st.sidebar:
     st.divider()
-    if st.button("🔄 Refresh", use_container_width=True):
+    st.markdown("**Filters**")
+    st.session_state["sel_src"] = st.multiselect(
+        "Source", sources, default=st.session_state["sel_src"],
+    )
+    st.session_state["sel_sent"] = st.multiselect(
+        "Sentiment", SENTIMENT_OPTS, default=st.session_state["sel_sent"],
+    )
+    st.session_state["sel_cat"] = st.multiselect(
+        "Category", PRIORITY_ORDER, default=st.session_state["sel_cat"],
+    )
+
+    # Reset filters button — quick escape hatch when too narrow
+    _n_active = (
+        (0 if len(st.session_state["sel_src"])  == len(sources)         else 1) +
+        (0 if len(st.session_state["sel_sent"]) == len(SENTIMENT_OPTS)  else 1) +
+        (0 if len(st.session_state["sel_cat"])  == len(PRIORITY_ORDER)  else 1)
+    )
+    if _n_active and st.button(f"Reset {_n_active} filter(s)", use_container_width=True):
+        st.session_state["sel_src"]  = sources
+        st.session_state["sel_sent"] = SENTIMENT_OPTS[:]
+        st.session_state["sel_cat"]  = PRIORITY_ORDER[:]
+        st.rerun()
+
+    st.divider()
+    if st.button("Refresh data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-df_all = load_data(days)
-banks  = load_banks()
+sel_src  = st.session_state["sel_src"]
+sel_sent = st.session_state["sel_sent"]
+sel_cat  = st.session_state["sel_cat"]
 
 # ── Hero "Story of the Day" ──────────────────────────────────────────────────
 # Auto-generates an editorial headline from the actual data so the dashboard
@@ -748,113 +824,7 @@ def _hero_headline(df: pd.DataFrame, df_prev: pd.DataFrame, days: int) -> tuple[
              f"need attention first.")
     return h, d
 
-# Hero uses df_all (full period) — the briefing represents the window, not the
-# currently-filtered slice. For the headline-picker we need bank mentions, so
-# do a light detection pass on df_all here (cheap — only used for picking the
-# top competitor name).
-def _detect_top_competitor(_df: pd.DataFrame, _banks: dict) -> str:
-    if _df.empty:
-        return ""
-    text_blob = (
-        _df["title"].fillna("") + " " + _df.get("summary_en", "").fillna("") + " " +
-        _df.get("summary_vi", "").fillna("")
-    )
-    from collections import Counter
-    bc: Counter = Counter()
-    for txt in text_blob:
-        for b in detect_banks(txt, _banks):
-            if b.lower() != "kbank":
-                bc[b] += 1
-    return bc.most_common(1)[0][0] if bc else ""
-
-# Attach a temp banks_mentioned proxy so _hero_headline can read top_bank.
-# Hero only needs aggregate stats — we feed it a tiny derived frame.
-_hero_df = df_all.copy()
-if not _hero_df.empty:
-    _hero_df["banks_mentioned"] = [
-        detect_banks(
-            (str(r.get("title") or "") + " " + str(r.get("summary_en") or "") + " " + str(r.get("summary_vi") or "")),
-            banks,
-        )
-        for _, r in _hero_df.iterrows()
-    ]
-
-_df_prev_for_hero = load_prev_period(days)
-_headline, _deck = _hero_headline(_hero_df, _df_prev_for_hero, days)
-
-from datetime import datetime as _dt
-_today_str = _dt.now().strftime("%A · %d %B %Y")
-
-st.html(
-    f"""
-    <div class="hero-wrap">
-      <div class="hero-kicker">Today's Briefing · Home Loan Vietnam</div>
-      <h1 class="hero-headline">{_headline}</h1>
-      <p class="hero-deck">{_deck}</p>
-      <div class="hero-meta">
-        <span class="hero-byline">📅 {_today_str}</span>
-        <span class="hero-dot"></span>
-        <span>Window: last {days} days</span>
-        <span class="hero-dot"></span>
-        <span>{len(df_all)} articles tracked</span>
-        <span class="hero-dot"></span>
-        {_scrape_health_badge()}
-      </div>
-    </div>
-    """
-)
-
-# ── Filter bar (popovers) ────────────────────────────────────────────────────
-# Each popover shows the chosen count so users can see active filters at a
-# glance without opening the menu.
-SENTIMENT_OPTS = ["positive", "neutral", "negative"]
-
-if df_all.empty:
-    sources = []
-else:
-    sources = sorted(df_all["source"].dropna().unique().tolist())
-
-# Persist filter selections across reruns
-if "sel_src"  not in st.session_state: st.session_state["sel_src"]  = sources
-if "sel_sent" not in st.session_state: st.session_state["sel_sent"] = SENTIMENT_OPTS[:]
-if "sel_cat"  not in st.session_state: st.session_state["sel_cat"]  = PRIORITY_ORDER[:]
-
-# Reconcile sources if the underlying list changed (e.g. new source added)
-st.session_state["sel_src"] = [s for s in st.session_state["sel_src"] if s in sources] or sources
-
-def _filter_label(name: str, selected: list, total: int) -> str:
-    if not selected or len(selected) == total:
-        return f"{name} · All"
-    return f"{name} · {len(selected)}"
-
-fb_cols = st.columns([2, 2, 2, 6])
-with fb_cols[0]:
-    with st.popover(_filter_label("Source", st.session_state["sel_src"], len(sources)),
-                    use_container_width=True):
-        st.session_state["sel_src"] = st.multiselect(
-            "Source", sources, default=st.session_state["sel_src"],
-            label_visibility="collapsed",
-        )
-with fb_cols[1]:
-    with st.popover(_filter_label("Sentiment", st.session_state["sel_sent"], len(SENTIMENT_OPTS)),
-                    use_container_width=True):
-        st.session_state["sel_sent"] = st.multiselect(
-            "Sentiment", SENTIMENT_OPTS, default=st.session_state["sel_sent"],
-            label_visibility="collapsed",
-        )
-with fb_cols[2]:
-    with st.popover(_filter_label("Category", st.session_state["sel_cat"], len(PRIORITY_ORDER)),
-                    use_container_width=True):
-        st.session_state["sel_cat"] = st.multiselect(
-            "Category", PRIORITY_ORDER, default=st.session_state["sel_cat"],
-            label_visibility="collapsed",
-        )
-
-sel_src  = st.session_state["sel_src"]
-sel_sent = st.session_state["sel_sent"]
-sel_cat  = st.session_state["sel_cat"]
-
-# ── Apply filters ─────────────────────────────────────────────────────────────
+# ── Apply filters (moved up so hero/KPIs see the SAME filtered data) ─────────
 
 df = df_all.copy()
 if not df.empty:
@@ -893,19 +863,59 @@ if not df.empty:
     # Voice and Competitor Watch view modes in the Action Feed.
     df["source_type"] = df["source"].apply(classify_source)
 
-# Volume breakdown for the caption — surfaces the source mix at a glance
-# so users notice when (e.g.) Facebook bank pages start dominating the feed.
+# ── Hero "Story of the Day" ──────────────────────────────────────────────────
+# Now reads from the SAME filtered df as the KPIs below, so the headline can
+# never lie about what the user is looking at.
+_df_prev_for_hero = load_prev_period(days)
+_headline, _deck = _hero_headline(df, _df_prev_for_hero, days)
+
+from datetime import datetime as _dt
+_today_str = _dt.now().strftime("%a · %d %b %Y")
+
+# Source mix surfaces in the hero meta now (replaces the orphan caption that
+# used to live between hero and KPIs).
 _src_mix = df["source_type"].value_counts().to_dict() if not df.empty else {}
 _src_mix_str = " · ".join(
     f"{_src_mix.get(t, 0)} {t}" for t in ("forum", "facebook", "news") if _src_mix.get(t, 0)
 )
-st.caption(
-    f"Last {days} days · {len(df)} articles "
-    f"({_src_mix_str}) · times in GMT+7 · refreshes every 60s"
+
+# Active filter chip in hero meta — so user sees at a glance that they're
+# looking at a filtered view (and the hero stats reflect that filter).
+_filter_chip = ""
+_active_filter_count = (
+    (0 if len(sel_src)  == len(sources)         else 1) +
+    (0 if len(sel_sent) == len(SENTIMENT_OPTS)  else 1) +
+    (0 if len(sel_cat)  == len(PRIORITY_ORDER)  else 1)
+)
+if _active_filter_count:
+    _filter_chip = (
+        f'<span class="hero-dot"></span>'
+        f'<span style="color:#22C55E;font-weight:500">'
+        f'{_active_filter_count} filter(s) active</span>'
+    )
+
+st.html(
+    f"""
+    <div class="hero-wrap">
+      <div class="hero-kicker">Today's Briefing · Home Loan Vietnam</div>
+      <h1 class="hero-headline">{_headline}</h1>
+      <p class="hero-deck">{_deck}</p>
+      <div class="hero-meta">
+        <span class="hero-byline">{_today_str}</span>
+        <span class="hero-dot"></span>
+        <span>Window: last {days}d</span>
+        <span class="hero-dot"></span>
+        <span>{len(df)} articles ({_src_mix_str or "none"})</span>
+        {_filter_chip}
+        <span class="hero-dot"></span>
+        {_scrape_health_badge()}
+      </div>
+    </div>
+    """
 )
 
 if df.empty:
-    st.info("No articles match the current filters.")
+    st.info("No articles match the current filters. Try clearing filters in the sidebar or widening the date range.")
     st.stop()
 
 # KPI strip — counts for the current window + period-over-period deltas
@@ -929,17 +939,20 @@ else:
 # delta_color="inverse" flips the green/red so that "more complaints" shows
 # red (bad) and "fewer complaints" shows green (good). Same for negative
 # sentiment and competitor promos.
+# Labels stripped of emojis — they don't match Plex Mono and trip the
+# `no-emoji-icons` accessibility rule. Section meaning lives in the
+# uppercase Plex Mono label color and position instead.
 k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Total Articles",       total,      delta=pct_delta(total, total_p))
-k2.metric("🚨 Complaints",         complaints, delta=pct_delta(complaints, complaints_p),
-          delta_color="inverse")
-k3.metric("📢 Competitor Promos",  promos,     delta=pct_delta(promos, promos_p),
-          delta_color="inverse")
-k4.metric("🔍 Potential Customers", seekers,   delta=pct_delta(seekers, seekers_p))
-k5.metric("😞 Negative Sentiment",  neg,       delta=pct_delta(neg, neg_p),
-          delta_color="inverse")
-
-st.caption(f"Deltas compare to the previous {days} days.")
+k1.metric("Total Articles",        total,      delta=pct_delta(total, total_p),
+          help=f"Compared to previous {days} days")
+k2.metric("Complaints",            complaints, delta=pct_delta(complaints, complaints_p),
+          delta_color="inverse", help="Pain points + dissatisfaction signals")
+k3.metric("Competitor Promos",     promos,     delta=pct_delta(promos, promos_p),
+          delta_color="inverse", help="Promotional pushes from rival banks")
+k4.metric("Potential Customers",   seekers,    delta=pct_delta(seekers, seekers_p),
+          help="Articles where intent = seeking_info")
+k5.metric("Negative Sentiment",    neg,        delta=pct_delta(neg, neg_p),
+          delta_color="inverse", help="Negative-toned mentions across all sources")
 
 # Export current filtered articles as CSV
 _csv_cols = ["scraped_at", "source", "category", "sentiment", "intent",
@@ -965,15 +978,18 @@ st.divider()
 _qp = st.query_params
 _admin_mode = _qp.get("admin", "0") == "1"
 
-_tab_labels = ["📊 Overview", "📋 Action Feed", "🏦 Competitor Intel", "🧠 Insights"]
+_tab_labels = ["Daily Brief", "Analytics", "Competitors", "AI Insights"]
 if _admin_mode:
-    _tab_labels.append("💰 Cost")
+    _tab_labels.append("Cost")
 
 _tabs = st.tabs(_tab_labels)
-tab_overview     = _tabs[0]
-tab_action_feed  = _tabs[1]
-tab_competitor   = _tabs[2]
-tab_insights     = _tabs[3]
+# Tab order reflects user journey: actionable first → broad analytics →
+# competitor lens → AI summary. Daily Brief surfaces what needs attention now;
+# Analytics is the slower-burn dashboard.
+tab_action_feed  = _tabs[0]   # "Daily Brief"
+tab_overview     = _tabs[1]   # "Analytics"
+tab_competitor   = _tabs[2]   # "Competitors"
+tab_insights     = _tabs[3]   # "AI Insights"
 tab_cost         = _tabs[4] if _admin_mode else None
 
 # ═══════════════════════════════════════════════════════════
@@ -1184,28 +1200,24 @@ with tab_action_feed:
         st.markdown(card, unsafe_allow_html=True)
 
     # ── View-mode toggle ────────────────────────────────────────────────────
-    # Four views, each tuned to a different audience inside the team:
-    #   🎯 Action Queue       — mixed sources, urgency-ranked, for leadership
-    #   💬 Customer Voice     — forum-only, raw buyer chatter, for product/UX
-    #   🏦 Competitor Watch   — anything mentioning a competitor bank by name
-    #                          (FB marketing + forum comparisons + news), for marketing
-    #   📚 Browse All         — category-grouped (legacy view for power users)
-    VIEW_MODES = ["🎯 Action Queue", "💬 Customer Voice", "🏦 Competitor Watch", "📚 Browse All"]
+    # Three audience-specific cuts of the same priority queue. "Browse All"
+    # (the legacy category-grouped view) was retired — it duplicated what the
+    # Analytics tab's "Category breakdown" already shows, and added a 4th
+    # mental model where 3 were already enough.
+    VIEW_MODES = ["Action Queue", "Customer Voice", "Competitor Watch"]
     view_mode = st.radio(
         "View mode", VIEW_MODES,
         horizontal=True, label_visibility="collapsed",
         key="action_view_mode",
     )
 
-    # Pre-filter the dataframe by audience cut for the two segmented views.
-    # The same priority-ranking + Done-button logic is reused — just on
-    # a smaller slice — so the UX stays consistent across all three
-    # priority-sorted modes.
-    if view_mode == "💬 Customer Voice":
+    # Pre-filter the dataframe by audience cut. Same priority-ranking + Done
+    # button flow reused across all three so the UX stays consistent.
+    if view_mode == "Customer Voice":
         df_view = df[df["source_type"] == "forum"]
         view_subtitle = "Forum threads — what buyers are actually saying. Newer + negative items surface first."
-        empty_message = "No forum chatter in this date range. Try widening the date filter."
-    elif view_mode == "🏦 Competitor Watch":
+        empty_message = "No forum chatter in this window. Try widening the date range."
+    elif view_mode == "Competitor Watch":
         # Competitor intel = anything that names a competitor — bank or
         # real-estate developer — anywhere in title/summary. FB posts
         # (always competitor marketing) are unconditionally included on
@@ -1214,64 +1226,48 @@ with tab_action_feed:
             (df["source_type"] == "facebook")
             | df["mentions_competitor"]
         ]
-        view_subtitle = "Anything naming a competitor bank or developer — FB marketing, forum comparisons, press coverage. Pick your battle."
-        empty_message = "No competitor mentions in this date range. Try widening the date filter, or wait for the next daily scrape."
+        view_subtitle = "Anything naming a competitor bank or developer — FB marketing, forum comparisons, press coverage."
+        empty_message = "No competitor mentions in this window. Try widening the date range."
     else:
         df_view = df
-        view_subtitle = "Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them from view."
-        empty_message = "🎉 Queue empty — nothing else flagged for review in this date range."
+        view_subtitle = "Sorted by urgency — complaints and negatives surface first. Dismiss handled items to clear them."
+        empty_message = "Queue empty — nothing else flagged for review in this window."
 
-    # ── Priority-sorted list with Done buttons (Action Queue / Customer Voice / Competitor Watch) ──
-    if view_mode in ("🎯 Action Queue", "💬 Customer Voice", "🏦 Competitor Watch"):
-        df_q = df_view.copy()
-        if df_q.empty:
-            st.info(empty_message)
-        else:
-            df_q["_score"] = df_q.apply(_priority_score, axis=1)
-            df_q = df_q[~df_q["id"].isin(st.session_state["dismissed_ids"])]
-            df_q = df_q.sort_values("_score").head(20)
-
-            dismissed_n = len(st.session_state["dismissed_ids"])
-            header_l, header_r = st.columns([4, 2])
-            with header_l:
-                st.markdown(f"### {len(df_q)} items need a look")
-                st.caption(view_subtitle)
-            with header_r:
-                if dismissed_n:
-                    if st.button(f"↺ Restore {dismissed_n} dismissed", use_container_width=True):
-                        st.session_state["dismissed_ids"] = set()
-                        st.rerun()
-
-            if df_q.empty:
-                st.success("🎉 You've cleared every item in this view.")
-            else:
-                for _, row in df_q.iterrows():
-                    cat = row.get("category") or "general"
-                    section_bg     = sections.get(cat, sections["general"])[1]
-                    section_accent = sections.get(cat, sections["general"])[2]
-                    _render_card(row, section_bg=section_bg, section_accent=section_accent,
-                                 show_priority_reasons=True)
-                    # Dismiss button under each card
-                    b_left, _b_sp = st.columns([1, 7])
-                    with b_left:
-                        if st.button("✓ Done", key=f"done_{row['id']}", use_container_width=True):
-                            st.session_state["dismissed_ids"].add(row["id"])
-                            st.rerun()
-
-    # ── Browse All: original grouped-by-category view (kept for power users) ─
+    # ── Priority-sorted list with Done buttons ──────────────────────────────
+    df_q = df_view.copy()
+    if df_q.empty:
+        st.info(empty_message)
     else:
-        df_feed = df.copy()
-        df_feed["_rank"] = df_feed["category"].map(cat_rank).fillna(99)
-        df_feed = df_feed.sort_values(["_rank", "scraped_at"], ascending=[True, False])
+        df_q["_score"] = df_q.apply(_priority_score, axis=1)
+        df_q = df_q[~df_q["id"].isin(st.session_state["dismissed_ids"])]
+        df_q = df_q.sort_values("_score").head(20)
 
-        for cat, (heading, card_bg, accent) in sections.items():
-            grp = df_feed[df_feed["category"] == cat]
-            if grp.empty:
-                continue
-            st.html(f"<h3 style='margin:0 0 8px'>{heading} <small style='color:{accent};font-size:16px'>{len(grp)}</small></h3>")
-            for _, row in grp.iterrows():
-                _render_card(row, section_bg=card_bg, section_accent=accent)
-            st.html("<div style='margin-bottom:8px'></div>")
+        dismissed_n = len(st.session_state["dismissed_ids"])
+        header_l, header_r = st.columns([4, 2])
+        with header_l:
+            st.markdown(f"### {len(df_q)} items need a look")
+            st.caption(view_subtitle)
+        with header_r:
+            if dismissed_n:
+                if st.button(f"Restore {dismissed_n} dismissed", use_container_width=True):
+                    st.session_state["dismissed_ids"] = set()
+                    st.rerun()
+
+        if df_q.empty:
+            st.success("You've cleared every item in this view.")
+        else:
+            for _, row in df_q.iterrows():
+                cat = row.get("category") or "general"
+                section_bg     = sections.get(cat, sections["general"])[1]
+                section_accent = sections.get(cat, sections["general"])[2]
+                _render_card(row, section_bg=section_bg, section_accent=section_accent,
+                             show_priority_reasons=True)
+                # Dismiss button under each card
+                b_left, _b_sp = st.columns([1, 7])
+                with b_left:
+                    if st.button("Done", key=f"done_{row['id']}", use_container_width=True):
+                        st.session_state["dismissed_ids"].add(row["id"])
+                        st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════
