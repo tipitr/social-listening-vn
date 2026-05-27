@@ -543,7 +543,11 @@ with tab_action_feed:
             f'border-radius:12px;font-size:11px">{intent}</span>'
             f'</div></div>'
         )
-        st.html(card)
+        # IMPORTANT: must be st.markdown(unsafe_allow_html=True), NOT st.html().
+        # st.html()'s sanitiser strips the target="_blank" attribute from anchors,
+        # so source-chip and title clicks would navigate the current tab instead
+        # of opening a new tab. st.markdown preserves target.
+        st.markdown(card, unsafe_allow_html=True)
 
     # ── View mode toggle ────────────────────────────────────────────────────
     view_mode = st.radio(
@@ -773,7 +777,10 @@ with tab_competitor:
                 f'<p style="margin:6px 0 0;color:#555;font-size:13px">&#127468;&#127463; {r["summary_en"] or "&mdash;"}</p>'
                 f'</div>'
             )
-            st.html(card2)
+            # See _render_card() — st.markdown preserves target="_blank",
+            # st.html() strips it. Without this swap, clicking the title chip
+            # in the "Articles by Bank" list would navigate the current tab.
+            st.markdown(card2, unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════
