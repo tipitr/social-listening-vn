@@ -517,12 +517,15 @@ _pio.templates.default = "kbank_dark"
 # single source of truth for the KBank-Vietnam visual identity. Adjust palettes
 # there, not here.
 
-SENT_ICON   = {"positive": "😊", "neutral": "😐", "negative": "😞"}
+# SENT_ICON kept (unused now — _render_card uses a colored dot, card2 too)
+# in case any future card style wants a glyph back. Not referenced in chrome.
+SENT_ICON   = {"positive": "+", "neutral": "·", "negative": "−"}
+# Intent labels — uppercase mono codes instead of emoji. Maps to terminal vibe.
 INTENT_LABEL = {
-    "seeking_info":       "🔍 Seeking Info",
-    "sharing_experience": "💬 Experience",
-    "complaint":          "⚠️ Complaint",
-    "promotion":          "📢 Promotion",
+    "seeking_info":       "SEEKING INFO",
+    "sharing_experience": "EXPERIENCE",
+    "complaint":          "COMPLAINT",
+    "promotion":          "PROMOTION",
 }
 PRIORITY_ORDER = ["complaint", "interest_rate", "promotion", "loan_approval",
                   "bank_comparison", "general"]
@@ -618,11 +621,22 @@ def _scrape_health_badge() -> str:
     from datetime import datetime
     from pipeline.timeutils import LOCAL_TZ
 
+    # Terminal-style status pill: glowing colored dot + Plex Mono label.
+    # Dot color encodes freshness; label spells out the actual age so screen
+    # readers and color-blind users still get the info (a11y: color-not-only).
+    def _pill(dot_color: str, label: str) -> str:
+        return (
+            f'<span style="display:inline-flex;align-items:center;gap:6px;'
+            f'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+            f'font-weight:500;color:#94A3B8;text-transform:uppercase;'
+            f'letter-spacing:0.08em">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{dot_color};'
+            f'box-shadow:0 0 8px {dot_color};display:inline-block"></span>{label}</span>'
+        )
+
     last_iso = get_last_scrape_iso()
     if not last_iso:
-        return (f'<span style="background:{THEME["warning_bg"]};color:{THEME["warning_fg"]};'
-                f'padding:4px 10px;border-radius:14px;font-size:13px;font-weight:600">'
-                f'⏳ No scrape recorded yet — first scheduled run at 7 AM Vietnam time</span>')
+        return _pill("#F59E0B", "Scrape: not yet recorded · first run 07:00 ICT")
 
     try:
         last_dt = datetime.fromisoformat(last_iso.replace("Z", ""))
@@ -633,15 +647,11 @@ def _scrape_health_badge() -> str:
     hours = (now - last_dt).total_seconds() / 3600
 
     if hours < 25:  # daily cron + a little wiggle room
-        bg, fg, icon, label = THEME["success_bg"], THEME["success_fg"], "🟢", f"{int(max(hours, 0))}h ago"
+        return _pill("#22C55E", f"Scrape OK · {int(max(hours, 0))}h ago")
     elif hours < 49:
-        bg, fg, icon, label = THEME["warning_bg"], THEME["warning_fg"], "🟡", f"{int(hours)}h ago — may be stale"
+        return _pill("#F59E0B", f"Scrape stale · {int(hours)}h ago")
     else:
-        bg, fg, icon, label = THEME["danger_bg"], THEME["danger_fg"], "🔴", f"{int(hours/24)}d ago — automation may be broken"
-
-    return (f'<span style="background:{bg};color:{fg};padding:4px 10px;'
-            f'border-radius:14px;font-size:13px;font-weight:600">'
-            f'{icon} Last daily scrape: {label}</span>')
+        return _pill("#EF4444", f"Scrape broken · {int(hours/24)}d ago")
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -954,23 +964,23 @@ k4.metric("Potential Customers",   seekers,    delta=pct_delta(seekers, seekers_
 k5.metric("Negative Sentiment",    neg,        delta=pct_delta(neg, neg_p),
           delta_color="inverse", help="Negative-toned mentions across all sources")
 
-# Export current filtered articles as CSV
+# Export current filtered articles as CSV — rendered as a tight right-rail
+# action just above the tabs. No lonely-column layout, no separator below.
 _csv_cols = ["scraped_at", "source", "category", "sentiment", "intent",
              "title", "summary_vi", "summary_en", "url"]
 _csv_df = df[[c for c in _csv_cols if c in df.columns]]
 _csv_bytes = _csv_df.to_csv(index=False).encode("utf-8-sig")  # BOM so Excel reads UTF-8
 
-dl_left, dl_spacer = st.columns([1, 5])
-with dl_left:
+_, dl_right = st.columns([5, 1])
+with dl_right:
     st.download_button(
-        f"⬇️ Export {len(df)} articles (CSV)",
+        f"Export {len(df)} CSV",
         data=_csv_bytes,
         file_name=f"home_loan_articles_{days}d.csv",
         mime="text/csv",
         use_container_width=True,
+        help="Download the filtered articles for offline analysis.",
     )
-
-st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 # Order matches user mental model: summary → drill-in → comparison → narrative.
@@ -1033,18 +1043,18 @@ with tab_action_feed:
         st.session_state["dismissed_ids"] = set()
 
     def _priority_reasons(row) -> list[str]:
-        """Human-readable reasons this item is in the action queue."""
+        """Reasons this item is in the action queue — uppercase mono codes."""
         reasons = []
         if row.get("category") == "complaint":
-            reasons.append("🚨 Complaint")
+            reasons.append("COMPLAINT")
         if row.get("sentiment") == "negative":
-            reasons.append("🔻 Negative")
+            reasons.append("NEGATIVE")
         if row.get("category") == "promotion":
-            reasons.append("📢 Competitor move")
+            reasons.append("COMPETITOR MOVE")
         if row.get("category") == "interest_rate":
-            reasons.append("💰 Rate signal")
+            reasons.append("RATE SIGNAL")
         if row.get("intent") == "seeking_info":
-            reasons.append("🔍 Potential customer")
+            reasons.append("POTENTIAL LEAD")
         return reasons
 
     def _priority_score(row) -> float:
@@ -1243,10 +1253,18 @@ with tab_action_feed:
         df_q = df_q.sort_values("_score").head(20)
 
         dismissed_n = len(st.session_state["dismissed_ids"])
-        header_l, header_r = st.columns([4, 2])
+        header_l, header_m, header_r = st.columns([4, 1.4, 1.4])
         with header_l:
             st.markdown(f"### {len(df_q)} items need a look")
             st.caption(view_subtitle)
+        with header_m:
+            if len(df_q) > 1 and st.button(
+                f"Dismiss all {len(df_q)}", use_container_width=True,
+                help="Mark every visible item as handled. Use 'Restore' to undo.",
+            ):
+                for _id in df_q["id"].tolist():
+                    st.session_state["dismissed_ids"].add(_id)
+                st.rerun()
         with header_r:
             if dismissed_n:
                 if st.button(f"Restore {dismissed_n} dismissed", use_container_width=True):
@@ -1428,24 +1446,34 @@ with tab_competitor:
         sel_bank = st.selectbox("Select bank", sorted(bdf["bank"].unique()))
         bank_articles = bdf[bdf["bank"] == sel_bank].sort_values("date", ascending=False)
         for _, r in bank_articles.iterrows():
-            sent_bg = SENT_COLOR.get(r["sentiment"], THEME["text_subtle"])
+            sent = r["sentiment"] or "neutral"
+            sent_color = {"positive": "#22C55E", "neutral": "#64748B",
+                          "negative": "#EF4444"}.get(sent, "#64748B")
             date_str = r["date"].strftime("%d %b") if pd.notna(r["date"]) else ""
             title_html = (
                 f'<a href="{r["url"]}" target="_blank" rel="noopener noreferrer" '
-                f'style="color:{THEME["text"]};font-weight:600;font-size:14px;text-decoration:none">{r["title"]}</a>'
-                if r["url"] else f'<span style="font-weight:600">{r["title"]}</span>'
+                f'style="color:#F8FAFC;font-family:\'IBM Plex Sans\',sans-serif;'
+                f'font-weight:600;font-size:0.95rem;text-decoration:none">{r["title"]}</a>'
+                if r["url"] else
+                f'<span style="color:#F8FAFC;font-family:\'IBM Plex Sans\',sans-serif;'
+                f'font-weight:600;font-size:0.95rem">{r["title"]}</span>'
             )
             card2 = (
-                f'<div style="border:1px solid {THEME["card_border"]};border-radius:8px;'
-                f'padding:12px 16px;margin-bottom:8px;background:{THEME["card_bg"]}">'
-                f'<div style="margin-bottom:6px">'
-                f'<span style="background:{sent_bg};color:white;padding:2px 8px;'
-                f'border-radius:12px;font-size:11px;font-weight:600">'
-                f'{SENT_ICON.get(r["sentiment"],"")} {r["sentiment"]}</span>'
-                f'<span style="color:{THEME["text_subtle"]};font-size:12px;margin-left:8px">{date_str}</span>'
+                f'<div class="terminal-card" style="border:1px solid #1E293B;border-radius:8px;'
+                f'padding:14px 16px;margin-bottom:8px;'
+                f'background:linear-gradient(180deg,#0F172A 0%,#0A1124 100%)">'
+                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+                f'<span style="display:inline-flex;align-items:center;gap:6px;color:{sent_color};'
+                f'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;font-weight:500;'
+                f'text-transform:uppercase;letter-spacing:0.10em">'
+                f'<span style="width:6px;height:6px;border-radius:50%;background:{sent_color};'
+                f'box-shadow:0 0 8px {sent_color};display:inline-block"></span>{sent}</span>'
+                f'<span style="color:#475569;font-family:\'IBM Plex Mono\',monospace;'
+                f'font-size:0.68rem;letter-spacing:0.08em">{date_str}</span>'
                 f'</div>'
                 f'{title_html}'
-                f'<p style="margin:6px 0 0;color:{THEME["text_muted"]};font-size:13px">&#127468;&#127463; {r["summary_en"] or "&mdash;"}</p>'
+                f'<p style="margin:8px 0 0;color:#94A3B8;font-size:0.85rem;line-height:1.5;'
+                f'font-family:\'IBM Plex Sans\',sans-serif">{r["summary_en"] or "—"}</p>'
                 f'</div>'
             )
             # See _render_card() — st.markdown preserves target="_blank",
