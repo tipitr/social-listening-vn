@@ -1,4 +1,5 @@
 facebook_pages:
+  # ── Direct competitors (rate + promo intel) ─────────────────────
   - name: Vietcombank
     page_id: "Vietcombank"
   - name: Techcombank
@@ -7,6 +8,27 @@ facebook_pages:
     page_id: "VPBankOfficial"
   - name: MBBank
     page_id: "mbbank"
+  - name: ACB
+    page_id: "ACB Bank"
+  - name: BIDV
+    page_id: "BIDVbankvietnam"               # exact FB slug — fb.com/BIDVbankvietnam (1.1M likes)
+  # ── Foreign-bank peers (KBank's natural strategic set) ──────────
+  - name: ShinhanVN
+    page_id: "Shinhanbank.vn"                # exact FB slug — fb.com/Shinhanbank.vn (1.6M likes)
+  # ── Customer voice (real estate developers) ─────────────────────
+  - name: Vinhomes
+    page_id: "Vinhomes"
+  - name: Masterise
+    page_id: "Masterise Homes"
+  - name: Novaland
+    page_id: "Novaland"
+
+  # NOTE — two pages still need verification before we can add them:
+  #   - HSBC Vietnam  →  generic "HSBC Vietnam" search returns the Careers
+  #     sub-page; need to confirm the official main consumer-banking page
+  #     slug from KBank's marketing team or HSBC's own site footer.
+  #   - UOB Vietnam   →  no strong public FB presence found via search;
+  #     UOB may not maintain a Vietnam-specific FB page.
 
 news_sites:
   # Real estate sections — highest density of home loan content
