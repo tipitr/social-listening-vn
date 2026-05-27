@@ -21,23 +21,31 @@ st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide"
 # We flatten secrets so both shapes work:
 #   flat:        DATABASE_URL = "..."
 #   sectioned:   [env]\nDATABASE_URL = "..."
+#
+# Only touch st.secrets if a secrets file actually exists — otherwise
+# Streamlit renders a noisy red "No secrets files found" banner to end users.
 WANTED_SECRETS = ("DATABASE_URL", "ANTHROPIC_API_KEY", "FIRECRAWL_API_KEY",
                   "FACEBOOK_ACCESS_TOKEN", "FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET")
-try:
-    flat: dict = {}
-    for top_key in list(st.secrets.keys()):
-        value = st.secrets[top_key]
-        if hasattr(value, "keys"):  # a TOML table — flatten it in
-            for k, v in value.items():
-                flat[k] = v
-        else:
-            flat[top_key] = value
-    for _key in WANTED_SECRETS:
-        if _key in flat:
-            os.environ[_key] = str(flat[_key])
-except Exception:
-    # Running locally without secrets.toml is fine — .env covers it.
-    pass
+_secret_paths = [
+    Path.home() / ".streamlit" / "secrets.toml",
+    Path(__file__).parent.parent / ".streamlit" / "secrets.toml",
+]
+if any(p.exists() for p in _secret_paths):
+    try:
+        flat: dict = {}
+        for top_key in list(st.secrets.keys()):
+            value = st.secrets[top_key]
+            if hasattr(value, "keys"):  # a TOML table — flatten it in
+                for k, v in value.items():
+                    flat[k] = v
+            else:
+                flat[top_key] = value
+        for _key in WANTED_SECRETS:
+            if _key in flat:
+                os.environ[_key] = str(flat[_key])
+    except Exception:
+        # Running locally without secrets.toml is fine — .env covers it.
+        pass
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline import db  # noqa: E402
@@ -218,7 +226,22 @@ def detect_banks(text: str, banks: dict) -> list[str]:
 with st.sidebar:
     st.markdown("## 🏠 Home Loan Intel")
     st.divider()
-    days = st.slider("Date range (days)", 1, 30, 7)
+    st.markdown("**Date range**")
+    # Preset buttons + slider — presets cover the 95% case, slider is the escape hatch.
+    _preset_labels = ["Today", "7d", "14d", "30d", "Custom"]
+    _preset_days   = {"Today": 1, "7d": 7, "14d": 14, "30d": 30}
+    if "date_preset" not in st.session_state:
+        st.session_state["date_preset"] = "7d"
+    preset = st.radio(
+        "Date preset", _preset_labels,
+        index=_preset_labels.index(st.session_state["date_preset"]),
+        horizontal=True, label_visibility="collapsed",
+    )
+    st.session_state["date_preset"] = preset
+    if preset == "Custom":
+        days = st.slider("Days", 1, 30, 7, label_visibility="collapsed")
+    else:
+        days = _preset_days[preset]
     df_all = load_data(days)
     banks  = load_banks()
 
@@ -249,8 +272,15 @@ if not df.empty:
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
-st.markdown("# 🏠 Home Loan — Social Intelligence")
-st.html(_scrape_health_badge())
+hdr_l, hdr_r = st.columns([5, 2])
+with hdr_l:
+    st.markdown("# 🏠 Home Loan — Social Intelligence")
+with hdr_r:
+    # Right-align the badge so the title can breathe; badge stays visible without dominating.
+    st.html(
+        f'<div style="display:flex;justify-content:flex-end;align-items:center;'
+        f'height:100%;padding-top:14px">{_scrape_health_badge()}</div>'
+    )
 st.caption(f"Last {days} days · {len(df)} articles · times shown in GMT+7 · refreshes every 60s")
 
 if df.empty:
@@ -309,14 +339,27 @@ with dl_left:
 st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
+# Order matches user mental model: summary → drill-in → comparison → narrative.
+# Cost is an admin/ops view, hidden unless ?admin=1 is in the URL.
+_qp = st.query_params
+_admin_mode = _qp.get("admin", "0") == "1"
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Action Feed", "🏦 Competitor Intel", "📊 Overview", "🧠 Insights", "💰 Cost"])
+_tab_labels = ["📊 Overview", "📋 Action Feed", "🏦 Competitor Intel", "🧠 Insights"]
+if _admin_mode:
+    _tab_labels.append("💰 Cost")
+
+_tabs = st.tabs(_tab_labels)
+tab_overview     = _tabs[0]
+tab_action_feed  = _tabs[1]
+tab_competitor   = _tabs[2]
+tab_insights     = _tabs[3]
+tab_cost         = _tabs[4] if _admin_mode else None
 
 # ═══════════════════════════════════════════════════════════
 # TAB 1 — ACTION FEED  (priority-sorted articles)
 # ═══════════════════════════════════════════════════════════
 
-with tab1:
+with tab_action_feed:
     # Sort by priority: complaints first, then interest_rate, then promos…
     cat_rank = {c: i for i, c in enumerate(PRIORITY_ORDER)}
     df_feed  = df.copy()
@@ -337,6 +380,14 @@ with tab1:
         return (f'<span style="background:{bg};color:{fg};padding:2px 10px;'
                 f'border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap">{text}</span>')
 
+    # Per-sentiment card tint overrides the section default so negative items
+    # stand out even when grouped under a "neutral" category like General News.
+    SENT_BG = {
+        "negative": ("#fdecea", "#c0392b"),   # warm red wash, stronger border
+        "positive": ("#eafaf1", "#1e8449"),   # mint wash
+        "neutral":  (None,      None),        # keep section default
+    }
+
     for cat, (heading, card_bg, accent) in sections.items():
         grp = df_feed[df_feed["category"] == cat]
         if grp.empty:
@@ -345,6 +396,9 @@ with tab1:
 
         for _, row in grp.iterrows():
             sent    = row.get("sentiment") or "neutral"
+            _bg, _border = SENT_BG.get(sent, (None, None))
+            row_bg     = _bg     if _bg     is not None else card_bg
+            row_accent = _border if _border is not None else accent
             src     = row.get("source") or ""
             title   = row.get("title")  or "(no title)"
             url     = row.get("url")    or ""
@@ -375,8 +429,8 @@ with tab1:
             )
 
             card = (
-                f'<div style="background:{card_bg};border:1px solid #e8e8e8;'
-                f'border-left:4px solid {accent};border-radius:10px;'
+                f'<div style="background:{row_bg};border:1px solid #e8e8e8;'
+                f'border-left:5px solid {row_accent};border-radius:10px;'
                 f'padding:14px 18px;margin-bottom:10px;'
                 f'box-shadow:0 1px 3px rgba(0,0,0,0.05)">'
                 f'<div style="display:flex;justify-content:space-between;'
@@ -404,7 +458,7 @@ with tab1:
 # TAB 2 — COMPETITOR INTEL
 # ═══════════════════════════════════════════════════════════
 
-with tab2:
+with tab_competitor:
     # ── Bank reference table ──────────────────────────────────────────────
     # Note: we used to show a "Promo Rate" / "Max Term" column here, but
     # banks publish multiple rate tiers (fixed 1/2/3/5 yr + floating) that
@@ -531,7 +585,7 @@ with tab2:
 # TAB 3 — OVERVIEW CHARTS
 # ═══════════════════════════════════════════════════════════
 
-with tab3:
+with tab_overview:
     c1, c2 = st.columns(2)
 
     with c1:
@@ -636,7 +690,7 @@ with tab3:
 # TAB 4 — INSIGHTS  (AI-generated report)
 # ═══════════════════════════════════════════════════════════
 
-with tab4:
+with tab_insights:
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from pipeline.insight_agent import generate_report, get_latest_report, markdown_to_html
@@ -710,10 +764,10 @@ with tab4:
 
 
 # ═══════════════════════════════════════════════════════════
-# TAB 5 — COST TRACKER
+# TAB 5 — COST TRACKER  (admin-only: visible when ?admin=1 is in the URL)
 # ═══════════════════════════════════════════════════════════
 
-with tab5:
+def _render_cost_tab():
     import os, requests as _req
 
     st.subheader("💰 API Usage & Cost Tracker")
@@ -804,3 +858,8 @@ with tab5:
         display["Cost (USD)"] = display["Cost (USD)"].map("${:.4f}".format)
         display["Time"] = display["Time"].dt.strftime("%d %b %H:%M")
         st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+if tab_cost is not None:
+    with tab_cost:
+        _render_cost_tab()
