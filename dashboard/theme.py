@@ -82,6 +82,46 @@ THEME: dict = {
         "accent":      "#138F2D",
         "kicker_fg":   "#0E6B22",   # uppercase "TODAY'S SIGNAL" label
     },
+
+    # ── Editorial typography ────────────────────────────────────────────────
+    # Playfair Display for display/serif headings (magazine feel), Inter for
+    # body/UI. Loaded from Google Fonts via CSS in app.py.
+    "fonts": {
+        "serif":      "'Playfair Display', 'Source Serif Pro', Georgia, serif",
+        "sans":       "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        "mono":       "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+    },
+
+    # ── Spacing scale (4px base) ────────────────────────────────────────────
+    "space": {
+        "xs": "4px", "sm": "8px", "md": "16px",
+        "lg": "24px", "xl": "32px", "2xl": "48px", "3xl": "64px",
+    },
+
+    # ── Radius scale ────────────────────────────────────────────────────────
+    "radius": {
+        "sm": "6px", "md": "10px", "lg": "16px", "xl": "24px", "pill": "999px",
+    },
+
+    # ── Shadow scale (soft, editorial) ──────────────────────────────────────
+    "shadow": {
+        "sm":   "0 1px 2px rgba(20,30,40,0.04)",
+        "md":   "0 2px 8px rgba(20,30,40,0.06), 0 1px 2px rgba(20,30,40,0.04)",
+        "lg":   "0 12px 32px rgba(20,30,40,0.08), 0 4px 12px rgba(20,30,40,0.05)",
+        "hover":"0 8px 24px rgba(19,143,45,0.12), 0 2px 6px rgba(20,30,40,0.06)",
+    },
+}
+
+# ── Pastel chip palette for editorial category tags ────────────────────────
+# Softer than THEME["category"][cat]["accent"] — used as the chip fill in the
+# magazine card grid. Text uses the matching accent color for contrast.
+CATEGORY_CHIP: dict = {
+    "complaint":       {"bg": "#FCEEEA", "fg": "#8E2A1F"},
+    "interest_rate":   {"bg": "#E6F4E9", "fg": "#0E6B22"},
+    "promotion":       {"bg": "#EEF8F0", "fg": "#0E6B22"},
+    "loan_approval":   {"bg": "#E8F1F8", "fg": "#1F4F7A"},
+    "bank_comparison": {"bg": "#FDF4E1", "fg": "#7A4F09"},
+    "general":         {"bg": "#F2F4F2", "fg": "#5B6470"},
 }
 
 # ── Backwards-compat aliases ────────────────────────────────────────────────

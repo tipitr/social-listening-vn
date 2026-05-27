@@ -14,14 +14,300 @@ import streamlit as st
 # set_page_config MUST come before any other Streamlit call (including st.secrets).
 st.set_page_config(page_title="Home Loan Intel", page_icon="🏠", layout="wide")
 
-# ── Small CSS polish ─────────────────────────────────────────────────────────
-# Streamlit's mobile defaults already stack columns and wrap headings okay;
-# trying to "improve" padding/font-size globally tends to clip the H1 against
-# the Streamlit chrome. Keep this minimal — only style the popover triggers.
+# ── Editorial stylesheet ─────────────────────────────────────────────────────
+# Option 2 "Editorial Intelligence Report" look: magazine typography (Playfair
+# Display for headings, Inter for body), generous whitespace, soft shadows,
+# pastel chips. This single CSS block does most of the visual lift — the
+# underlying Streamlit widgets stay the same.
 st.html(
     """
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-      [data-testid="stPopover"] button { font-weight: 600; }
+      /* ── Base typography ───────────────────────────────────────────── */
+      html, body, [class*="css"], .stApp, .main, [data-testid="stAppViewContainer"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        color: #1A1F2C;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      .stApp { background: #FAFAF7; }
+
+      /* Headings use Playfair Display — magazine feel */
+      h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        font-family: 'Playfair Display', Georgia, serif !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.01em;
+        color: #0F1419;
+      }
+      h1, .stMarkdown h1 { font-size: 2.4rem !important; line-height: 1.15; font-weight: 800 !important; }
+      h2, .stMarkdown h2 { font-size: 1.7rem !important; line-height: 1.25; }
+      h3, .stMarkdown h3 { font-size: 1.25rem !important; line-height: 1.3; }
+
+      /* Subheaders (stSubheader) — keep editorial but slightly tighter */
+      [data-testid="stHeader"] { background: transparent; }
+
+      /* Caption styling */
+      .stCaption, [data-testid="stCaptionContainer"] {
+        font-family: 'Inter', sans-serif !important;
+        color: #5B6470 !important;
+        font-size: 0.85rem !important;
+        letter-spacing: 0.01em;
+      }
+
+      /* ── Layout container ─────────────────────────────────────────── */
+      .block-container {
+        padding-top: 2.5rem !important;
+        padding-bottom: 4rem !important;
+        max-width: 1280px;
+      }
+
+      /* ── Tabs — editorial pill bar ─────────────────────────────────── */
+      [data-testid="stTabs"] [role="tablist"] {
+        gap: 4px;
+        border-bottom: 1px solid #ECEFEC;
+        padding-bottom: 0;
+        margin-bottom: 1.5rem;
+      }
+      [data-testid="stTabs"] [role="tab"] {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        color: #5B6470 !important;
+        padding: 12px 18px !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        border-bottom: 2px solid transparent !important;
+        transition: all 0.2s ease;
+      }
+      [data-testid="stTabs"] [role="tab"]:hover {
+        color: #138F2D !important;
+        background: rgba(19,143,45,0.04) !important;
+      }
+      [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+        color: #0F1419 !important;
+        border-bottom: 2px solid #138F2D !important;
+        background: transparent !important;
+      }
+
+      /* ── KPI metrics — editorial numbers ───────────────────────────── */
+      [data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid #ECEFEC;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 2px rgba(20,30,40,0.03);
+        transition: all 0.2s ease;
+      }
+      [data-testid="stMetric"]:hover {
+        box-shadow: 0 8px 24px rgba(19,143,45,0.08), 0 2px 6px rgba(20,30,40,0.04);
+        transform: translateY(-1px);
+      }
+      [data-testid="stMetricLabel"] {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #5B6470 !important;
+      }
+      [data-testid="stMetricValue"] {
+        font-family: 'Playfair Display', Georgia, serif !important;
+        font-size: 2.2rem !important;
+        font-weight: 700 !important;
+        color: #0F1419 !important;
+        line-height: 1.1;
+      }
+      [data-testid="stMetricDelta"] {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+      }
+
+      /* ── Popover filter triggers — pill style ──────────────────────── */
+      [data-testid="stPopover"] button {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        background: #FFFFFF !important;
+        border: 1px solid #E5EAE6 !important;
+        border-radius: 999px !important;
+        padding: 8px 16px !important;
+        color: #1A1F2C !important;
+        transition: all 0.15s ease;
+      }
+      [data-testid="stPopover"] button:hover {
+        border-color: #138F2D !important;
+        background: #F2FAF4 !important;
+      }
+
+      /* ── Radio (view mode) — segmented control ─────────────────────── */
+      [data-testid="stRadio"] > div {
+        gap: 4px;
+        background: #F4F6F4;
+        padding: 4px;
+        border-radius: 999px;
+        display: inline-flex;
+      }
+      [data-testid="stRadio"] label {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        padding: 6px 14px !important;
+        border-radius: 999px !important;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        color: #5B6470 !important;
+      }
+      [data-testid="stRadio"] label:hover { color: #138F2D !important; }
+      [data-testid="stRadio"] label:has(input:checked) {
+        background: #FFFFFF !important;
+        color: #0F1419 !important;
+        box-shadow: 0 1px 3px rgba(20,30,40,0.08);
+      }
+      [data-testid="stRadio"] input { display: none !important; }
+
+      /* ── Buttons — refined ─────────────────────────────────────────── */
+      .stButton button, .stDownloadButton button {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        border-radius: 999px !important;
+        border: 1px solid #E5EAE6 !important;
+        transition: all 0.15s ease;
+      }
+      .stButton button:hover, .stDownloadButton button:hover {
+        border-color: #138F2D !important;
+        color: #138F2D !important;
+        background: #F2FAF4 !important;
+      }
+
+      /* ── Dividers — softer ─────────────────────────────────────────── */
+      hr, [data-testid="stMarkdownContainer"] hr {
+        border: none;
+        border-top: 1px solid #ECEFEC;
+        margin: 2rem 0;
+      }
+
+      /* ── Expander — editorial frame ────────────────────────────────── */
+      [data-testid="stExpander"] {
+        border: 1px solid #ECEFEC !important;
+        border-radius: 12px !important;
+        background: #FFFFFF !important;
+      }
+      [data-testid="stExpander"] summary {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+      }
+
+      /* ── Dataframes — cleaner ──────────────────────────────────────── */
+      [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #ECEFEC;
+      }
+
+      /* ── Info / success / warning blocks ───────────────────────────── */
+      [data-testid="stAlert"] {
+        border-radius: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+      }
+
+      /* ── Card hover lift (used by .editorial-card class) ───────────── */
+      .editorial-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .editorial-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(20,30,40,0.08), 0 4px 12px rgba(20,30,40,0.05) !important;
+      }
+
+      /* ── Hero block ────────────────────────────────────────────────── */
+      .hero-wrap {
+        background: linear-gradient(135deg, #F2FAF4 0%, #FFFFFF 65%);
+        border: 1px solid #E0EFE3;
+        border-radius: 24px;
+        padding: 40px 48px;
+        margin-bottom: 28px;
+        box-shadow: 0 2px 8px rgba(20,30,40,0.04);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero-wrap::before {
+        content: "";
+        position: absolute; top: 0; right: 0;
+        width: 220px; height: 220px;
+        background: radial-gradient(circle at top right, rgba(19,143,45,0.10), transparent 70%);
+        pointer-events: none;
+      }
+      .hero-kicker {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #138F2D;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .hero-kicker::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+        background: linear-gradient(90deg, #C9E4CF, transparent);
+        max-width: 120px;
+      }
+      .hero-headline {
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: 2.6rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #0F1419;
+        letter-spacing: -0.015em;
+        margin: 0 0 14px;
+        max-width: 820px;
+      }
+      .hero-deck {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.05rem;
+        font-weight: 400;
+        line-height: 1.55;
+        color: #3B424E;
+        margin: 0;
+        max-width: 720px;
+      }
+      .hero-meta {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.8rem;
+        color: #5B6470;
+        margin-top: 18px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .hero-byline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 500;
+      }
+      .hero-dot {
+        width: 4px; height: 4px; border-radius: 50%;
+        background: #B0B8C1;
+        display: inline-block;
+      }
+
+      /* Mobile */
+      @media (max-width: 768px) {
+        .hero-wrap { padding: 28px 24px; border-radius: 18px; }
+        .hero-headline { font-size: 1.8rem; }
+        .hero-deck { font-size: 0.95rem; }
+        [data-testid="stMetricValue"] { font-size: 1.6rem !important; }
+        .block-container { padding-top: 1.5rem !important; }
+      }
     </style>
     """
 )
@@ -66,7 +352,7 @@ from pipeline.config_loader import load_keywords as _load_keywords_yaml  # noqa:
 from pipeline.timeutils import days_ago_iso  # noqa: E402
 
 from dashboard.source_taxonomy import classify_source  # noqa: E402
-from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR  # noqa: E402
+from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR, CATEGORY_CHIP  # noqa: E402
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
 
 # ── Styling ──────────────────────────────────────────────────────────────────
@@ -271,16 +557,126 @@ with st.sidebar:
 df_all = load_data(days)
 banks  = load_banks()
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# ── Hero "Story of the Day" ──────────────────────────────────────────────────
+# Auto-generates an editorial headline from the actual data so the dashboard
+# opens like a daily briefing rather than a control panel.
+def _hero_headline(df: pd.DataFrame, df_prev: pd.DataFrame, days: int) -> tuple[str, str]:
+    """Return (headline, deck) — picks the most newsworthy angle from this period."""
+    if df.empty:
+        return ("No signal yet — the queue is quiet.",
+                "Widen the date range or wait for the next daily scrape to surface fresh chatter.")
 
-hdr_l, hdr_r = st.columns([5, 2])
-with hdr_l:
-    st.markdown("# 🏠 Home Loan — Social Intelligence")
-with hdr_r:
-    st.html(
-        f'<div style="display:flex;justify-content:flex-end;align-items:center;'
-        f'height:100%;padding-top:14px">{_scrape_health_badge()}</div>'
+    total = len(df)
+    neg   = int((df["sentiment"] == "negative").sum())
+    pos   = int((df["sentiment"] == "positive").sum())
+    comp  = int((df["category"] == "complaint").sum())
+    promo = int((df["category"] == "promotion").sum())
+    seek  = int((df["intent"] == "seeking_info").sum())
+
+    neg_pct = (neg / total * 100) if total else 0
+    pos_pct = (pos / total * 100) if total else 0
+
+    prev_total = len(df_prev)
+    delta_pct  = ((total - prev_total) / prev_total * 100) if prev_total else 0
+
+    # Most-mentioned competitor this period (excluding KBank itself)
+    top_bank = ""
+    if "banks_mentioned" in df.columns:
+        from collections import Counter
+        bc = Counter()
+        for lst in df["banks_mentioned"].dropna():
+            for b in lst:
+                if b.lower() != "kbank":
+                    bc[b] += 1
+        if bc:
+            top_bank = bc.most_common(1)[0][0]
+
+    # Pick the strongest angle
+    if neg_pct >= 35 and comp >= 3:
+        h = f"Complaint volume climbs — {comp} pain-point signals this {days}-day window."
+        d = (f"Negative sentiment sits at {neg_pct:.0f}% of the conversation. Customer Voice tab "
+             f"surfaces the specific threads buyers are flagging.")
+    elif promo >= 4 and top_bank:
+        h = f"{top_bank} leads a fresh competitor push — {promo} promotional moves on the radar."
+        d = (f"Rate war activity is up. Competitor Intel tab breaks down who's offering what, "
+             f"with sentiment by bank.")
+    elif delta_pct >= 25 and prev_total:
+        h = f"Conversation volume up {delta_pct:.0f}% — the home-loan story is heating up."
+        d = (f"{total} articles tracked in the last {days} days vs {prev_total} prior. "
+             f"Pos {pos_pct:.0f}% / Neg {neg_pct:.0f}%.")
+    elif delta_pct <= -25 and prev_total:
+        h = f"Conversation cooling — volume down {abs(delta_pct):.0f}% vs the prior {days} days."
+        d = (f"{total} articles in window. Quieter weeks are a chance to look at what stuck — "
+             f"check the Insights tab for the slower-burn signal.")
+    elif seek >= 5:
+        h = f"{seek} potential buyers are asking — the funnel is talking."
+        d = (f"Seeking-info intent dominates the queue. Customer Voice tab has the exact "
+             f"questions; Action Queue surfaces the urgent ones first.")
+    elif top_bank:
+        h = f"{top_bank} dominates this week's mortgage chatter."
+        d = (f"{total} articles tracked. Sentiment splits Pos {pos_pct:.0f}% / Neg {neg_pct:.0f}%. "
+             f"Competitor Intel tab has the per-bank breakdown.")
+    else:
+        h = f"{total} mortgage signals tracked across forums, Facebook, and the press."
+        d = (f"Pos {pos_pct:.0f}% / Neg {neg_pct:.0f}%. The Action Queue has the items that "
+             f"need attention first.")
+    return h, d
+
+# Hero uses df_all (full period) — the briefing represents the window, not the
+# currently-filtered slice. For the headline-picker we need bank mentions, so
+# do a light detection pass on df_all here (cheap — only used for picking the
+# top competitor name).
+def _detect_top_competitor(_df: pd.DataFrame, _banks: dict) -> str:
+    if _df.empty:
+        return ""
+    text_blob = (
+        _df["title"].fillna("") + " " + _df.get("summary_en", "").fillna("") + " " +
+        _df.get("summary_vi", "").fillna("")
     )
+    from collections import Counter
+    bc: Counter = Counter()
+    for txt in text_blob:
+        for b in detect_banks(txt, _banks):
+            if b.lower() != "kbank":
+                bc[b] += 1
+    return bc.most_common(1)[0][0] if bc else ""
+
+# Attach a temp banks_mentioned proxy so _hero_headline can read top_bank.
+# Hero only needs aggregate stats — we feed it a tiny derived frame.
+_hero_df = df_all.copy()
+if not _hero_df.empty:
+    _hero_df["banks_mentioned"] = [
+        detect_banks(
+            (str(r.get("title") or "") + " " + str(r.get("summary_en") or "") + " " + str(r.get("summary_vi") or "")),
+            banks,
+        )
+        for _, r in _hero_df.iterrows()
+    ]
+
+_df_prev_for_hero = load_prev_period(days)
+_headline, _deck = _hero_headline(_hero_df, _df_prev_for_hero, days)
+
+from datetime import datetime as _dt
+_today_str = _dt.now().strftime("%A · %d %B %Y")
+
+st.html(
+    f"""
+    <div class="hero-wrap">
+      <div class="hero-kicker">Today's Briefing · Home Loan Vietnam</div>
+      <h1 class="hero-headline">{_headline}</h1>
+      <p class="hero-deck">{_deck}</p>
+      <div class="hero-meta">
+        <span class="hero-byline">📅 {_today_str}</span>
+        <span class="hero-dot"></span>
+        <span>Window: last {days} days</span>
+        <span class="hero-dot"></span>
+        <span>{len(df_all)} articles tracked</span>
+        <span class="hero-dot"></span>
+        {_scrape_health_badge()}
+      </div>
+    </div>
+    """
+)
 
 # ── Filter bar (popovers) ────────────────────────────────────────────────────
 # Each popover shows the chosen count so users can see active filters at a
@@ -527,24 +923,47 @@ with tab_action_feed:
         return score
 
     def _render_card(row, *, section_bg: str, section_accent: str, show_priority_reasons: bool = False):
-        """Render one article card. Pure HTML — no Streamlit widgets — so it's cheap."""
+        """Render one article card — editorial magazine style.
+
+        Layout: pastel category chip (top-left) + sentiment dot, large serif
+        title, two-line bilingual summary, slim meta row. Hover lifts the card.
+        """
         sent    = row.get("sentiment") or "neutral"
-        _bg, _border = SENT_BG.get(sent, (None, None))
-        row_bg     = _bg     if _bg     is not None else section_bg
-        row_accent = _border if _border is not None else section_accent
         src     = row.get("source") or ""
         title   = row.get("title")  or "(no title)"
         url     = row.get("url")    or ""
         en      = row.get("summary_en") or ""
         vi      = row.get("summary_vi") or ""
         intent  = INTENT_LABEL.get(row.get("intent") or "", "")
-        date    = row["scraped_at"].strftime("%d %b %H:%M") if pd.notna(row["scraped_at"]) else ""
+        date    = row["scraped_at"].strftime("%d %b · %H:%M") if pd.notna(row["scraped_at"]) else ""
         b_names = row.get("banks_mentioned") or []
-        sent_bg = SENT_COLOR.get(sent, THEME["text_subtle"])
+        cat     = row.get("category") or "general"
+        sent_color = SENT_COLOR.get(sent, THEME["text_subtle"])
+
+        # Category chip uses pastel CATEGORY_CHIP palette (softer than the
+        # accent color we use for charts).
+        chip = CATEGORY_CHIP.get(cat, CATEGORY_CHIP["general"])
+        cat_label = cat.replace("_", " ").title()
+        cat_chip = (
+            f'<span style="background:{chip["bg"]};color:{chip["fg"]};'
+            f'padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;'
+            f'text-transform:uppercase;letter-spacing:0.06em;'
+            f'font-family:Inter,sans-serif">{cat_label}</span>'
+        )
+
+        # Sentiment dot — quiet visual signal, not a loud badge
+        sent_dot = (
+            f'<span style="display:inline-flex;align-items:center;gap:6px;'
+            f'color:{THEME["text_muted"]};font-size:11px;font-weight:600;'
+            f'font-family:Inter,sans-serif;text-transform:uppercase;letter-spacing:0.06em">'
+            f'<span style="width:8px;height:8px;border-radius:50%;background:{sent_color};'
+            f'display:inline-block"></span>{sent}</span>'
+        )
 
         bank_badges = "".join(
             f'<span style="background:{THEME["info_bg"]};color:{THEME["info_fg"]};'
-            f'padding:2px 8px;border-radius:12px;font-size:11px;margin-right:4px">{b}</span>'
+            f'padding:3px 9px;border-radius:999px;font-size:10.5px;margin-right:4px;'
+            f'font-weight:600;font-family:Inter,sans-serif">{b}</span>'
             for b in b_names
         )
         reason_badges = ""
@@ -552,51 +971,74 @@ with tab_action_feed:
             reasons = _priority_reasons(row)
             reason_badges = "".join(
                 f'<span style="background:{THEME["warning_bg"]};color:{THEME["warning_fg"]};'
-                f'padding:2px 8px;border-radius:12px;font-size:11px;margin-right:4px;font-weight:600">{r}</span>'
+                f'padding:3px 9px;border-radius:999px;font-size:10.5px;margin-right:4px;'
+                f'font-weight:700;font-family:Inter,sans-serif">{r}</span>'
                 for r in reasons
             )
 
-        # rel="noopener noreferrer" is required alongside target="_blank" —
-        # otherwise some browsers (and Streamlit's iframe context behind ngrok
-        # / Streamlit Cloud) navigate in the same tab and drop the user out
-        # of the dashboard.
+        # Serif title — the editorial signature move
         title_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="color:{THEME["text"]};font-weight:700;font-size:15px;text-decoration:none">{title}</a>'
-            if url else f'<span style="font-weight:700;font-size:15px">{title}</span>'
+            f'style="color:#0F1419;font-family:\'Playfair Display\',Georgia,serif;'
+            f'font-weight:700;font-size:1.15rem;line-height:1.3;text-decoration:none;'
+            f'display:block;margin:10px 0 8px">{title}</a>'
+            if url else
+            f'<span style="color:#0F1419;font-family:\'Playfair Display\',Georgia,serif;'
+            f'font-weight:700;font-size:1.15rem;line-height:1.3;display:block;'
+            f'margin:10px 0 8px">{title}</span>'
         )
-        # Source-type icon prefixed to the source chip so the reader can
-        # tell at a glance whether this came from Facebook, a forum, or a
-        # news site without having to remember which name maps where.
+
         src_type = classify_source(src)
         src_icon = {"facebook": "📘", "forum": "💬", "news": "📰"}.get(src_type, "🔗")
         src_html = (
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="background:{THEME["bg_alt"]};color:{THEME["text_muted"]};padding:2px 8px;'
-            f'border-radius:12px;font-size:11px;text-decoration:none">{src_icon} {src}</a>'
-            if url else _badge(f"{src_icon} {src}", THEME["bg_alt"], THEME["text_muted"])
+            f'style="color:{THEME["text_muted"]};font-size:11.5px;text-decoration:none;'
+            f'font-weight:500;font-family:Inter,sans-serif">{src_icon} {src}</a>'
+            if url else
+            f'<span style="color:{THEME["text_muted"]};font-size:11.5px;'
+            f'font-family:Inter,sans-serif">{src_icon} {src}</span>'
         )
 
+        # Negative items get a subtle red accent strip (kept thin & elegant)
+        accent_strip = ""
+        if sent == "negative":
+            accent_strip = f'border-top:3px solid {THEME["danger"]};'
+        elif sent == "positive" and cat in ("complaint",):
+            # rare but possible
+            accent_strip = f'border-top:3px solid {THEME["success"]};'
+
         card = (
-            f'<div style="background:{row_bg};border:1px solid {THEME["card_border"]};'
-            f'border-left:5px solid {row_accent};border-radius:10px;'
-            f'padding:14px 18px;margin-bottom:10px;'
-            f'box-shadow:0 1px 3px rgba(0,0,0,0.05)">'
+            f'<div class="editorial-card" style="background:#FFFFFF;'
+            f'border:1px solid #ECEFEC;{accent_strip}'
+            f'border-radius:14px;padding:22px 24px;margin-bottom:14px;'
+            f'box-shadow:0 1px 2px rgba(20,30,40,0.03)">'
+            # Top meta row
             f'<div style="display:flex;justify-content:space-between;'
-            f'align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">'
-            f'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-            f'{_badge(SENT_ICON.get(sent,"") + " " + sent, sent_bg)}'
-            f'{src_html}{bank_badges}{reason_badges}'
+            f'align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:2px">'
+            f'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+            f'{cat_chip}{sent_dot}'
             f'</div>'
-            f'<span style="color:{THEME["text_subtle"]};font-size:12px">{date}</span>'
+            f'<span style="color:{THEME["text_subtle"]};font-size:11.5px;'
+            f'font-family:Inter,sans-serif">{date}</span>'
             f'</div>'
+            # Headline
             f'{title_html}'
-            f'<p style="margin:8px 0 3px;color:{THEME["text"]};font-size:14px">&#127468;&#127463; {en or "&mdash;"}</p>'
-            f'<p style="margin:0;color:{THEME["text_muted"]};font-size:13px;font-style:italic">&#127483;&#127475; {vi or "&mdash;"}</p>'
-            f'<div style="margin-top:8px">'
-            f'<span style="background:{THEME["bg_alt"]};color:{THEME["text_muted"]};padding:2px 8px;'
-            f'border-radius:12px;font-size:11px">{intent}</span>'
-            f'</div></div>'
+            # Bilingual summary
+            f'<p style="margin:6px 0 4px;color:#3B424E;font-size:0.92rem;line-height:1.55;'
+            f'font-family:Inter,sans-serif">🇬🇧 {en or "—"}</p>'
+            f'<p style="margin:0 0 14px;color:{THEME["text_muted"]};font-size:0.88rem;'
+            f'line-height:1.5;font-style:italic;font-family:Inter,sans-serif">🇻🇳 {vi or "—"}</p>'
+            # Footer meta row — source, banks, reasons, intent
+            f'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
+            f'padding-top:12px;border-top:1px solid #F4F6F4">'
+            f'{src_html}'
+            f'<span style="color:#D5DAD5">·</span>'
+            f'{bank_badges}{reason_badges}'
+            f'<span style="margin-left:auto;color:{THEME["text_subtle"]};font-size:10.5px;'
+            f'font-family:Inter,sans-serif;font-weight:600;text-transform:uppercase;'
+            f'letter-spacing:0.06em">{intent}</span>'
+            f'</div>'
+            f'</div>'
         )
         # IMPORTANT: must be st.markdown(unsafe_allow_html=True), NOT st.html().
         # st.html()'s sanitiser strips the target="_blank" attribute from anchors,
