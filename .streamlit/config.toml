@@ -5,3 +5,17 @@ enableXsrfProtection = false
 [browser]
 serverAddress = "vowel-strongman-relearn.ngrok-free.dev"
 serverPort = 443
+
+# ── Brand theme ──────────────────────────────────────────────────────────────
+# Streamlit 1.35 only supports a single [theme] block. Users can still toggle
+# dark mode via the hamburger menu → Settings; it falls back to Streamlit's
+# default dark palette. Upgrade to Streamlit ≥ 1.41 to enable a custom
+# [theme.dark] variant.
+
+[theme]
+base = "light"
+primaryColor = "#e63946"              # brand red — buttons, focused inputs
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f6f8"  # sidebar + card wells
+textColor = "#1a1f2c"
+font = "sans serif"

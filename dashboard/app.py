@@ -221,13 +221,15 @@ def detect_banks(text: str, banks: dict) -> list[str]:
     return found
 
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar (slim: branding + time range + refresh) ──────────────────────────
+# Filters that depend on loaded data (Source / Sentiment / Category) live in
+# the horizontal filter bar below the header so the sidebar isn't crowded.
 
 with st.sidebar:
     st.markdown("## 🏠 Home Loan Intel")
+    st.caption("Real-time social signal for KBank Vietnam")
     st.divider()
     st.markdown("**Date range**")
-    # Preset buttons + slider — presets cover the 95% case, slider is the escape hatch.
     _preset_labels = ["Today", "7d", "14d", "30d", "Custom"]
     _preset_days   = {"Today": 1, "7d": 7, "14d": 14, "30d": 30}
     if "date_preset" not in st.session_state:
@@ -242,21 +244,74 @@ with st.sidebar:
         days = st.slider("Days", 1, 30, 7, label_visibility="collapsed")
     else:
         days = _preset_days[preset]
-    df_all = load_data(days)
-    banks  = load_banks()
-
-    if not df_all.empty:
-        sources   = sorted(df_all["source"].dropna().unique().tolist())
-        sel_src   = st.multiselect("Source", sources, default=sources)
-        sel_sent  = st.multiselect("Sentiment",
-                                   ["positive", "neutral", "negative"],
-                                   default=["positive", "neutral", "negative"])
-        sel_cat   = st.multiselect("Category", PRIORITY_ORDER,
-                                   default=PRIORITY_ORDER)
     st.divider()
-    if st.button("🔄 Refresh"):
+    if st.button("🔄 Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+
+df_all = load_data(days)
+banks  = load_banks()
+
+# ── Header ────────────────────────────────────────────────────────────────────
+
+hdr_l, hdr_r = st.columns([5, 2])
+with hdr_l:
+    st.markdown("# 🏠 Home Loan — Social Intelligence")
+with hdr_r:
+    st.html(
+        f'<div style="display:flex;justify-content:flex-end;align-items:center;'
+        f'height:100%;padding-top:14px">{_scrape_health_badge()}</div>'
+    )
+
+# ── Filter bar (popovers) ────────────────────────────────────────────────────
+# Each popover shows the chosen count so users can see active filters at a
+# glance without opening the menu.
+SENTIMENT_OPTS = ["positive", "neutral", "negative"]
+
+if df_all.empty:
+    sources = []
+else:
+    sources = sorted(df_all["source"].dropna().unique().tolist())
+
+# Persist filter selections across reruns
+if "sel_src"  not in st.session_state: st.session_state["sel_src"]  = sources
+if "sel_sent" not in st.session_state: st.session_state["sel_sent"] = SENTIMENT_OPTS[:]
+if "sel_cat"  not in st.session_state: st.session_state["sel_cat"]  = PRIORITY_ORDER[:]
+
+# Reconcile sources if the underlying list changed (e.g. new source added)
+st.session_state["sel_src"] = [s for s in st.session_state["sel_src"] if s in sources] or sources
+
+def _filter_label(name: str, selected: list, total: int) -> str:
+    if not selected or len(selected) == total:
+        return f"{name} · All"
+    return f"{name} · {len(selected)}"
+
+fb_cols = st.columns([2, 2, 2, 6])
+with fb_cols[0]:
+    with st.popover(_filter_label("Source", st.session_state["sel_src"], len(sources)),
+                    use_container_width=True):
+        st.session_state["sel_src"] = st.multiselect(
+            "Source", sources, default=st.session_state["sel_src"],
+            label_visibility="collapsed",
+        )
+with fb_cols[1]:
+    with st.popover(_filter_label("Sentiment", st.session_state["sel_sent"], len(SENTIMENT_OPTS)),
+                    use_container_width=True):
+        st.session_state["sel_sent"] = st.multiselect(
+            "Sentiment", SENTIMENT_OPTS, default=st.session_state["sel_sent"],
+            label_visibility="collapsed",
+        )
+with fb_cols[2]:
+    with st.popover(_filter_label("Category", st.session_state["sel_cat"], len(PRIORITY_ORDER)),
+                    use_container_width=True):
+        st.session_state["sel_cat"] = st.multiselect(
+            "Category", PRIORITY_ORDER, default=st.session_state["sel_cat"],
+            label_visibility="collapsed",
+        )
+
+sel_src  = st.session_state["sel_src"]
+sel_sent = st.session_state["sel_sent"]
+sel_cat  = st.session_state["sel_cat"]
 
 # ── Apply filters ─────────────────────────────────────────────────────────────
 
@@ -270,17 +325,6 @@ if not df.empty:
     combined = df["title"].fillna("") + " " + df["summary_en"].fillna("") + " " + df["summary_vi"].fillna("")
     df["banks_mentioned"] = combined.apply(lambda t: detect_banks(t, banks))
 
-# ── Header ────────────────────────────────────────────────────────────────────
-
-hdr_l, hdr_r = st.columns([5, 2])
-with hdr_l:
-    st.markdown("# 🏠 Home Loan — Social Intelligence")
-with hdr_r:
-    # Right-align the badge so the title can breathe; badge stays visible without dominating.
-    st.html(
-        f'<div style="display:flex;justify-content:flex-end;align-items:center;'
-        f'height:100%;padding-top:14px">{_scrape_health_badge()}</div>'
-    )
 st.caption(f"Last {days} days · {len(df)} articles · times shown in GMT+7 · refreshes every 60s")
 
 if df.empty:
@@ -586,6 +630,63 @@ with tab_competitor:
 # ═══════════════════════════════════════════════════════════
 
 with tab_overview:
+    # ── Hero "Today's signal" card ──────────────────────────────────────────
+    # One-glance summary of what changed period-over-period. Built from the
+    # existing KPI values (no LLM call), so it's instant and free.
+
+    def _delta_phrase(label: str, curr: int, prev: int, bad_when_up: bool) -> str | None:
+        """Render a phrase like '↑ complaints +25%' when the change is material.
+
+        Returns None when the metric is uninteresting (no change, or both 0)
+        so we can skip it in the headline.
+        """
+        if curr == 0 and prev == 0:
+            return None
+        if prev == 0:
+            return None  # avoid divide-by-zero / misleading 'infinity%'
+        delta_pct = (curr - prev) / prev * 100
+        if abs(delta_pct) < 5:
+            return None  # noise — skip
+        arrow = "▲" if delta_pct > 0 else "▼"
+        good = (delta_pct < 0) if bad_when_up else (delta_pct > 0)
+        color = "#1e8449" if good else "#c0392b"
+        sign = "+" if delta_pct > 0 else ""
+        return (f'<span style="color:{color};font-weight:600">'
+                f'{arrow} {label} {sign}{delta_pct:.0f}%</span>')
+
+    _movers = [
+        _delta_phrase("complaints",         complaints, complaints_p, bad_when_up=True),
+        _delta_phrase("negative sentiment", neg,        neg_p,        bad_when_up=True),
+        _delta_phrase("competitor promos",  promos,     promos_p,     bad_when_up=True),
+        _delta_phrase("potential customers", seekers,   seekers_p,    bad_when_up=False),
+    ]
+    _movers = [m for m in _movers if m]
+    if _movers:
+        _movers_html = " · ".join(_movers[:3])
+    else:
+        _movers_html = '<span style="color:#7f8c8d">no material change vs last period</span>'
+
+    _top_source = ""
+    if not df.empty and "source" in df.columns:
+        _top_source = df["source"].value_counts().idxmax()
+
+    st.html(
+        f"""
+        <div style="background:linear-gradient(135deg,#fff5f5 0%,#fff 60%);
+                    border:1px solid #f1d4d4;border-left:6px solid #e63946;
+                    border-radius:14px;padding:18px 22px;margin-bottom:18px">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;
+                      color:#9b1c1c;font-weight:700;margin-bottom:6px">
+            ✨ Today's signal · last {days} days
+          </div>
+          <div style="font-size:18px;color:#1a1f2c;line-height:1.5;font-weight:500">
+            <strong>{total}</strong> articles tracked{(', leading source <strong>' + _top_source + '</strong>') if _top_source else ''}.
+            Movers: {_movers_html}.
+          </div>
+        </div>
+        """
+    )
+
     c1, c2 = st.columns(2)
 
     with c1:
