@@ -29,14 +29,22 @@ COMMENT_LIMIT = 10
 # ── Config ────────────────────────────────────────────────────────────────────
 
 def _all_keywords(kw_cfg) -> list:
+    """Strict home-loan-only keywords for FB pages.
+
+    forum_keywords is intentionally NOT included. Those short terms
+    (``"lãi suất"``, ``"vay nhà"``) work for forum thread titles, but
+    bank FB pages publish car-loan / business-loan / credit-card promos
+    that also mention ``"lãi suất"`` and would slip through. The four
+    lists kept here every term contains an explicit housing word
+    (``"mua nhà"``, ``"căn hộ"``, ``"chung cư"``, ``"bất động sản"``,
+    ``"thế chấp"``) so only home-loan posts match.
+    """
     kw = kw_cfg.get("home_loan", {})
-    # Include forum_keywords — FB posts use short phrases like "vay nhà", "lãi suất"
     return (
         kw.get("vietnamese", [])
         + kw.get("interest_rate", [])
         + kw.get("credit", [])
         + kw.get("promotions", [])
-        + kw.get("forum_keywords", [])
     )
 
 

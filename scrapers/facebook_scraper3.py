@@ -69,14 +69,19 @@ def _headers() -> dict:
 # ─── Keyword filtering (mirrors scrapers/facebook.py) ───────────────────────
 
 def _all_keywords(kw_cfg: dict) -> list:
+    """Strict home-loan-only keywords for FB pages.
+
+    See scrapers/facebook.py for the full rationale. Short version:
+    forum_keywords matches car-loan and business-loan promos that
+    happen to mention ``"lãi suất"``. We require explicit housing
+    terms instead.
+    """
     kw = kw_cfg.get("home_loan", {})
-    # Include forum_keywords — FB posts are short, like forum threads
     return (
         kw.get("vietnamese", [])
         + kw.get("interest_rate", [])
         + kw.get("credit", [])
         + kw.get("promotions", [])
-        + kw.get("forum_keywords", [])
     )
 
 
