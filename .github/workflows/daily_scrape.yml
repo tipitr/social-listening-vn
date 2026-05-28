@@ -41,8 +41,15 @@ jobs:
           # Firecrawl — optional, enables JS-rendered site scraping
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
 
-          # Facebook Graph API — optional, enables FB page monitoring
+          # Facebook Graph API — optional, enables FB page monitoring via
+          # Meta's official API. Requires App Review for full data access
+          # (1-2 week approval). See FACEBOOK_API_GUIDE.md.
           FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
           FACEBOOK_APP_ID:       ${{ secrets.FACEBOOK_APP_ID }}
           FACEBOOK_APP_SECRET:   ${{ secrets.FACEBOOK_APP_SECRET }}
+
+          # RapidAPI Facebook Scraper3 — bridge backend used while waiting
+          # for Meta's App Review. Collector auto-picks this when no Meta
+          # credentials are present. See RAPIDAPI_FACEBOOK_SETUP.md.
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python main.py
