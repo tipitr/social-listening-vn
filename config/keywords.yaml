@@ -126,3 +126,23 @@ home_loan:
     - gói vay 4.6%
     - gói vay nhà ở xã hội
     - giải ngân nhà ở xã hội
+
+    # Person-to-person property classifieds (the noise pattern observed
+    # in OTOFUN's real-estate sub-forum). Real home-loan questions are
+    # almost always from BUYERS, not sellers/landlords. These phrases are
+    # strong seller-side markers; the small risk of catching a legitimate
+    # post like "muốn bán nhà cũ vay mua nhà mới" is worth the cleanup.
+    - bán nhà
+    - bán chung cư
+    - bán căn hộ
+    - bán shophouse
+    - bán biệt thự
+    - bán gấp
+    - cần bán
+    - e bán
+    - tôi bán
+    - mình bán
+    - chính chủ
+    - miễn trung gian
+    - cho thuê
+    - phòng trọ
