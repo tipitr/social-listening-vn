@@ -243,12 +243,28 @@ def scrape() -> list[dict]:
 
     for page in src_cfg.get("facebook_pages", []):
         page_name = page["name"]
-        # The "page_id" in sources.yaml is the FB username (e.g. "Vietcombank").
-        # We use it as the search query — RapidAPI returns the numeric id.
-        search_name = page.get("page_id", page_name)
-
         logger.info("Facebook (RapidAPI): %s", page_name)
-        numeric_id = _get_page_id(search_name)
+
+        # If sources.yaml already pins the resolved numeric Facebook id
+        # (the ``fb_id`` field on this entry), skip the /search/pages
+        # call entirely. That halves API quota burn from 2 calls/page
+        # to 1 — the difference between hitting Glavier's free-tier
+        # rate limit and not.
+        cached_id = page.get("fb_id")
+        if cached_id:
+            numeric_id = str(cached_id)
+        else:
+            # No cache → fall back to /search/pages. Log the resolved id
+            # so the operator can paste it back into sources.yaml as
+            # `fb_id: "<id>"` and skip this call on every future run.
+            search_name = page.get("page_id", page_name)
+            numeric_id = _get_page_id(search_name)
+            if numeric_id:
+                logger.info(
+                    "  → resolved fb_id=%s for %s — add `fb_id: \"%s\"` "
+                    "to sources.yaml to skip /search/pages next time",
+                    numeric_id, page_name, numeric_id,
+                )
         if not numeric_id:
             continue
 
