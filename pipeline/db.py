@@ -222,6 +222,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
     conversation_ref TEXT,
     message          TEXT    NOT NULL,
     category         TEXT,
+    topic            TEXT,
     sentiment        TEXT,
     intent           TEXT,
     summary_vi       TEXT,
@@ -238,6 +239,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
     conversation_ref TEXT,
     message          TEXT      NOT NULL,
     category         TEXT,
+    topic            TEXT,
     sentiment        TEXT,
     intent           TEXT,
     summary_vi       TEXT,
@@ -298,11 +300,16 @@ def init_schema() -> None:
                 conn.execute(
                     f"ALTER TABLE articles ADD COLUMN IF NOT EXISTS {col} {dtype}"
                 )
+            # inbox_messages gained `topic` after v1 — backfill the column.
+            conn.execute("ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS topic TEXT")
         else:
             existing = {row[1] for row in conn.execute("PRAGMA table_info(articles)").fetchall()}
             for col, dtype in _MIGRATION_COLS.items():
                 if col not in existing:
                     conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {dtype}")
+            inbox_cols = {row[1] for row in conn.execute("PRAGMA table_info(inbox_messages)").fetchall()}
+            if "topic" not in inbox_cols:
+                conn.execute("ALTER TABLE inbox_messages ADD COLUMN topic TEXT")
 
         # Indexes — speed up the date-window scan that runs on every dashboard
         # page load, and the scrape-heartbeat lookup on the home page. The

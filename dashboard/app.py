@@ -897,40 +897,46 @@ sel_cat  = st.session_state["sel_cat"]
 # public posts). "Customer Inbox" is the private 1:1 messages from our OWN
 # customers. They answer different questions for different teams, so they live
 # on separate screens instead of being mixed into one tab strip.
+_TOPIC_META = {
+    "rollover":    ("🔄", "Rollover"),
+    "new_inquiry": ("🆕", "New inquiry"),
+    "eligibility": ("✅", "Eligibility"),
+    "rates_fees":  ("💰", "Rates & fees"),
+    "servicing":   ("🛠️", "Servicing"),
+    "cross_sell":  ("🛡️", "Cross-sell"),
+    "complaint":   ("⚠️", "Complaint"),
+    "other":       ("📌", "Other"),
+}
+
+
+def _topic_label(t: str) -> str:
+    emoji, name = _TOPIC_META.get(t, ("📌", (t or "other").replace("_", " ").title()))
+    return f"{emoji} {name}"
+
+
 def render_inbox() -> None:
-    _CAT_LABEL = {
-        "interest_rate":   "Interest rate",
-        "loan_approval":   "Loan approval",
-        "bank_comparison": "Bank comparison",
-        "complaint":       "Complaint",
-        "promotion":       "Promotion",
-        "general":         "General",
-    }
+    from pipeline.inbox_insight import generate_inbox_insight, get_latest_inbox_insight
 
     st.html(
         '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
         'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
         'margin:4px 0 2px">Customer Inbox · Private home-loan chats on KBank\'s page</div>'
     )
-    st.caption("These are private 1:1 messages from KBank's own customers — separate "
-               "from the public market chatter in Social Listening. Personal info "
-               "(names, phones, emails) is masked; threads show only an anonymous id; "
-               "page replies are excluded.")
+    st.caption("Private 1:1 messages from KBank's own customers — separate from the "
+               "public market chatter in Social Listening. Personal info is masked; "
+               "threads show only an anonymous id; page replies are excluded.")
 
     @st.cache_data(ttl=60)
     def load_inbox() -> "pd.DataFrame":
-        # Full history (not the sidebar day-window) — the point here is the
-        # month-over-month trend, which needs every message we've collected.
         try:
             return db.read_sql_df(
-                "SELECT conversation_ref, message, category, sentiment, intent, "
+                "SELECT conversation_ref, message, topic, sentiment, "
                 "summary_en, sent_at FROM inbox_messages ORDER BY sent_at DESC"
             )
         except Exception:
             return pd.DataFrame()
 
     inbox = load_inbox()
-
     if inbox.empty:
         st.info("📭 No home-loan chats captured yet. As customers message KBank's "
                 "page about home loans, they'll appear here — the daily scrape "
@@ -938,6 +944,7 @@ def render_inbox() -> None:
         return
 
     inbox["month"] = inbox["sent_at"].str[:7]
+    inbox["topic"] = inbox["topic"].fillna("other")
 
     # ── KPIs ────────────────────────────────────────────────────────────────
     _this_month = now_iso()[:7]
@@ -946,65 +953,72 @@ def render_inbox() -> None:
     k2.metric("Distinct chats", inbox["conversation_ref"].nunique())
     k3.metric("This month", int((inbox["month"] == _this_month).sum()))
 
-    # ── Monthly volume trend ─────────────────────────────────────────────────
-    st.subheader("📈 Home-loan chats by month")
-    vol = inbox.groupby("month").size().reset_index(name="Messages")
-    fig = px.bar(vol, x="month", y="Messages", height=300,
-                 color_discrete_sequence=[THEME["primary_light"]])
-    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
-                      xaxis_title=None, yaxis_title=None)
+    # ── AI insight brief (the "so what") ─────────────────────────────────────
+    st.subheader("🧠 Insight brief")
+    if st.button("✨ Generate / refresh brief", help="Reads the inbox and writes "
+                 "the top themes + recommended actions"):
+        with st.spinner("Reading the inbox and finding themes…"):
+            try:
+                generate_inbox_insight()
+                st.cache_data.clear()
+            except Exception as exc:
+                st.error(f"Couldn't generate the brief: {exc}")
+    brief = get_latest_inbox_insight()
+    if brief:
+        st.markdown(brief)
+    else:
+        st.info("Click **Generate / refresh brief** to have AI summarize the top "
+                "themes and what to do about them.")
+
+    st.divider()
+
+    # ── Top themes (grouped + ranked, with examples) ─────────────────────────
+    st.subheader("📊 Top themes — what customers keep asking")
+    tc = inbox["topic"].value_counts().reset_index()
+    tc.columns = ["topic", "Count"]
+    tc["Theme"] = tc["topic"].map(_topic_label)
+    fig = px.bar(tc, x="Count", y="Theme", orientation="h", height=300,
+                 color_discrete_sequence=[THEME["primary"]])
+    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), yaxis_title=None,
+                      xaxis_title=None, yaxis=dict(autorange="reversed"))
     st.plotly_chart(fig, use_container_width=True)
 
-    cL, cR = st.columns(2)
+    st.caption("Open a theme to read the actual customer messages in it.")
+    for topic in tc["topic"]:
+        sub = inbox[inbox["topic"] == topic]
+        with st.expander(f"{_topic_label(topic)} · {len(sub)} messages"):
+            for _, r in sub.head(10).iterrows():
+                en = (r.get("summary_en") or "").strip()
+                st.markdown(
+                    f"**🇬🇧 {en}**  \n"
+                    f"🇻🇳 {r['message']}  \n"
+                    f"<span style='color:#94A3B8;font-size:11px'>{r['conversation_ref']} · "
+                    f"{r['sent_at'][:10]}</span>",
+                    unsafe_allow_html=True,
+                )
 
-    # ── What they ask about, month by month ──────────────────────────────────
-    with cL:
-        st.subheader("🏷️ What customers ask about")
-        cat = inbox.groupby(["month", "category"]).size().reset_index(name="Count")
-        cat["category"] = cat["category"].map(_CAT_LABEL).fillna(cat["category"])
-        fig = px.bar(cat, x="month", y="Count", color="category",
-                     barmode="stack", height=300)
-        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
-                          xaxis_title=None, yaxis_title=None,
-                          legend=dict(orientation="h", y=-0.2, title=None))
-        st.plotly_chart(fig, use_container_width=True)
+    st.divider()
 
-    # ── Mood ──────────────────────────────────────────────────────────────────
-    with cR:
-        st.subheader("😊 Customer mood")
-        sd = inbox["sentiment"].value_counts().reset_index()
-        sd.columns = ["Sentiment", "Count"]
-        fig = px.pie(sd, names="Sentiment", values="Count", hole=0.55,
-                     color="Sentiment", color_discrete_map=SENT_COLOR, height=300)
-        fig.update_traces(textposition="outside", textinfo="percent+label")
-        fig.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0))
-        st.plotly_chart(fig, use_container_width=True)
+    # ── Theme trend over time ────────────────────────────────────────────────
+    st.subheader("📈 Themes over time")
+    tr = inbox.groupby(["month", "topic"]).size().reset_index(name="Count")
+    tr["Theme"] = tr["topic"].map(_topic_label)
+    fig = px.bar(tr, x="month", y="Count", color="Theme", barmode="stack", height=300)
+    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), xaxis_title=None,
+                      yaxis_title=None, legend=dict(orientation="h", y=-0.25, title=None))
+    st.plotly_chart(fig, use_container_width=True)
 
-    # ── Recent messages (masked, English-first) ──────────────────────────────
-    st.subheader("💬 Recent home-loan messages")
-    st.caption("English summary up top so it's readable at a glance; the "
-               "original Vietnamese (personal details masked) is shown below it.")
-    for _, r in inbox.head(15).iterrows():
-        chip = CATEGORY_CHIP.get(r["category"], CATEGORY_CHIP["general"])
-        label = _CAT_LABEL.get(r["category"], r["category"])
-        en = (r.get("summary_en") or "").strip()
-        en_html = (
-            f'<div style="font-size:14px;color:{THEME["text"]};font-weight:600;'
-            f'margin-bottom:3px">🇬🇧 {en}</div>' if en else ""
-        )
-        st.html(
-            f'<div style="border:1px solid {THEME["card_border"]};border-radius:10px;'
-            f'padding:10px 14px;margin-bottom:8px;background:{THEME["card_bg"]}">'
-            f'<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px">'
-            f'<span style="font-family:monospace;font-size:11px;color:#64748B">{r["conversation_ref"]}</span>'
-            f'<span style="background:{chip["bg"]};color:{chip["fg"]};padding:1px 9px;'
-            f'border-radius:20px;font-size:11px;font-weight:600">{label}</span>'
-            f'<span style="font-size:11px;color:#64748B;margin-left:auto">{r["sent_at"][:10]}</span>'
-            f'</div>'
-            f'{en_html}'
-            f'<div style="font-size:13px;color:{THEME["text_muted"]}">🇻🇳 {r["message"]}</div>'
-            f'</div>'
-        )
+    # ── All messages (raw, masked) — tucked away ─────────────────────────────
+    with st.expander(f"💬 All {len(inbox)} messages (raw, English + masked Vietnamese)"):
+        for _, r in inbox.head(80).iterrows():
+            en = (r.get("summary_en") or "").strip()
+            st.markdown(
+                f"**🇬🇧 {en}** · _{_topic_label(r['topic'])}_  \n"
+                f"🇻🇳 {r['message']}  \n"
+                f"<span style='color:#94A3B8;font-size:11px'>{r['conversation_ref']} · "
+                f"{r['sent_at'][:10]}</span>",
+                unsafe_allow_html=True,
+            )
 
 
 _view = st.radio(

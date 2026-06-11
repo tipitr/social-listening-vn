@@ -67,11 +67,11 @@ _UPDATE_ARTICLE = """
     WHERE id = :id;
 """
 
-# Inbox messages get the same five labels, written to their own table.
+# Inbox messages get a richer `topic` (from config) + sentiment + translation.
 _FETCH_UNCAT_INBOX = """
     SELECT id, message
     FROM inbox_messages
-    WHERE (sentiment IS NULL OR summary_en IS NULL)
+    WHERE (topic IS NULL OR summary_en IS NULL)
       AND length(COALESCE(message, '')) >= :min_len
     ORDER BY id
     LIMIT :batch_size;
@@ -79,9 +79,8 @@ _FETCH_UNCAT_INBOX = """
 
 _UPDATE_INBOX = """
     UPDATE inbox_messages
-    SET sentiment  = :sentiment,
-        category   = :category,
-        intent     = :intent,
+    SET topic      = :topic,
+        sentiment  = :sentiment,
         summary_vi = :summary_vi,
         summary_en = :summary_en
     WHERE id = :id;
@@ -91,6 +90,44 @@ _VALID_SENTIMENTS  = {"positive", "negative", "neutral"}
 _VALID_CATEGORIES  = {"interest_rate", "loan_approval", "bank_comparison",
                       "complaint", "promotion", "general"}
 _VALID_INTENTS     = {"seeking_info", "sharing_experience", "complaint", "promotion"}
+
+
+def _inbox_topics() -> dict:
+    """Topic key → description, from config/keywords.yaml (inbox.topics)."""
+    from pipeline.config_loader import load_keywords
+    topics = load_keywords().get("inbox", {}).get("topics", {})
+    return topics or {"other": "Home-loan related"}
+
+
+def _build_inbox_prompt() -> str:
+    topics = _inbox_topics()
+    lines = "\n".join(f'    "{k}" — {v}' for k, v in topics.items())
+    return (
+        "Bạn là chuyên gia phân tích hội thoại chăm sóc khách hàng vay mua nhà "
+        "của ngân hàng (tiếng Việt).\n\n"
+        "Mỗi tin nhắn là một câu hỏi/yêu cầu RIÊNG của khách hàng gửi vào trang. "
+        "Với mỗi tin nhắn, trả về object JSON với đúng các trường:\n"
+        '- "id": số nguyên ID (giữ nguyên)\n'
+        '- "topic": chủ đề — chỉ dùng MỘT trong các khóa sau:\n'
+        f"{lines}\n"
+        '- "sentiment": "positive" | "negative" | "neutral"\n'
+        '- "summary_vi": tóm tắt ý định khách hàng bằng tiếng Việt (dưới 100 ký tự)\n'
+        '- "summary_en": one-sentence English summary of what the customer wants '
+        "(under 120 characters)\n\n"
+        "Chỉ trả về JSON array thuần, không markdown, không giải thích."
+    )
+
+
+def _validate_inbox(item: dict) -> dict:
+    valid_topics = set(_inbox_topics().keys())
+    topic = item.get("topic")
+    return {
+        "id":         item["id"],
+        "topic":      topic if topic in valid_topics else "other",
+        "sentiment":  item.get("sentiment") if item.get("sentiment") in _VALID_SENTIMENTS else "neutral",
+        "summary_vi": (item.get("summary_vi") or "")[:200],
+        "summary_en": (item.get("summary_en") or "")[:300],
+    }
 
 
 def _fetch_batch(fetch_sql: str, batch_size: int, min_len: int) -> list[dict]:
@@ -138,11 +175,13 @@ def _build_user_message(items: list[dict]) -> str:
     )
 
 
-def _categorize(fetch_sql: str, update_sql: str, to_item, label: str) -> int:
+def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
+                system_prompt: str = SYSTEM_PROMPT, validate_fn=_validate) -> int:
     """Shared loop: fetch uncategorized rows, label with Claude, write back.
 
-    ``to_item`` maps a DB row to the {id, title, content} shape Claude reads,
-    so the same prompt works for both articles and inbox messages.
+    ``to_item`` maps a DB row to the {id, title, content} shape Claude reads.
+    ``system_prompt`` / ``validate_fn`` differ between articles (6 categories)
+    and inbox messages (richer topic taxonomy).
     """
     init_db()
 
@@ -168,7 +207,7 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str) -> int:
                 system=[
                     {
                         "type": "text",
-                        "text": SYSTEM_PROMPT,
+                        "text": system_prompt,
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
@@ -177,7 +216,7 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str) -> int:
             )
             raw = response.content[0].text
             parsed = _extract_json(raw)
-            validated = [_validate(item) for item in parsed]
+            validated = [validate_fn(item) for item in parsed]
             saved = _update_batch(update_sql, validated)
             total_categorized += saved
             logger.info("  → categorized %d %s", saved, label)
@@ -217,11 +256,13 @@ def run() -> int:
 
 
 def run_inbox() -> int:
-    """Categorize all pending inbox messages. Returns total count categorized."""
+    """Categorize all pending inbox messages with the richer topic taxonomy."""
     return _categorize(
         _FETCH_UNCAT_INBOX, _UPDATE_INBOX,
         lambda r: {"id": r["id"], "title": "", "content": r["message"]},
         "inbox messages",
+        system_prompt=_build_inbox_prompt(),
+        validate_fn=_validate_inbox,
     )
 
 

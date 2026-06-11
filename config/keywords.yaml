@@ -186,3 +186,16 @@ inbox:
     - làm thẻ
     - hủy thẻ
     - huỷ thẻ
+
+  # Topics — the richer, inbox-specific buckets used for grouping + insight.
+  # Claude assigns each message exactly ONE topic key. Edit freely: the key is
+  # stored in the DB and the description is what Claude reads to decide.
+  topics:
+    rollover:    "Đáo thế chấp — refinance or roll over an EXISTING mortgage to a new bank/term"
+    new_inquiry: "Wants a NEW home/property loan, asks to borrow, or requests a loan consultation"
+    eligibility: "Qualification: income, documents, conditions — 'can I get approved?'"
+    rates_fees:  "Questions about interest rate, fees, or loan cost"
+    servicing:   "Existing loan servicing: making payments, the app, statements, early payoff"
+    cross_sell:  "Insurance or other products tied to the mortgage"
+    complaint:   "A problem, frustration, or negative experience"
+    other:       "Home-loan related but none of the above"
