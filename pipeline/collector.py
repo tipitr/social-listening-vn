@@ -191,10 +191,13 @@ def collect_all() -> int:
             if new_msgs > 0:
                 from pipeline.categorizer import run_inbox
                 run_inbox()
-                # Refresh the insight brief so the dashboard's "so what" stays current.
+                # Refresh the insight brief + question backlog so the dashboard's
+                # "so what" and content backlog stay current.
                 try:
                     from pipeline.inbox_insight import generate_inbox_insight
+                    from pipeline.inbox_questions import generate_question_map
                     generate_inbox_insight()
+                    generate_question_map()
                 except Exception as exc:
                     logger.warning("Inbox insight refresh failed (continuing): %s", exc)
         except Exception as exc:

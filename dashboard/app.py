@@ -916,6 +916,7 @@ def _topic_label(t: str) -> str:
 
 def render_inbox() -> None:
     from pipeline.inbox_insight import generate_inbox_insight, get_latest_inbox_insight
+    from pipeline.inbox_questions import generate_question_map, get_question_map
 
     st.html(
         '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
@@ -957,22 +958,56 @@ def render_inbox() -> None:
     st.subheader("🧠 Insight brief — what they ask & how to answer it")
     st.caption("Enquiry topics, the concern behind each, and ready-to-brief "
                "communication ideas to address them proactively.")
-    if st.button("✨ Generate / refresh brief", help="Reads the inbox and writes "
-                 "enquiry topics + communication opportunities"):
-        with st.spinner("Reading the inbox and finding themes…"):
+    if st.button("✨ Generate / refresh insight", help="Reads the inbox and writes "
+                 "the brief + the content backlog of questions to answer"):
+        with st.spinner("Reading the inbox, finding themes and mining questions…"):
             try:
                 generate_inbox_insight()
+                generate_question_map()
                 st.cache_data.clear()
             except Exception as exc:
-                st.error(f"Couldn't generate the brief: {exc}")
+                st.error(f"Couldn't generate the insight: {exc}")
     brief = get_latest_inbox_insight()
     if brief:
         st.markdown(brief)
     else:
-        st.info("Click **Generate / refresh brief** to have AI summarize the top "
-                "themes and what to do about them.")
+        st.info("Click **Generate / refresh insight** to have AI summarize the top "
+                "themes and mine the exact questions to answer.")
 
     st.divider()
+
+    # ── Content backlog — the exact questions to answer ──────────────────────
+    qmap = get_question_map()
+    if qmap and qmap.get("topics"):
+        st.subheader("📋 Content backlog — the questions to answer")
+        st.caption("Each theme broken into the specific recurring questions "
+                   "customers ask. One question = one FAQ, post, or page section. "
+                   "The number is roughly how many customers asked it.")
+        topics = qmap["topics"]
+        # biggest theme (by total question volume) first, and expanded
+        ordered = sorted(topics.items(),
+                         key=lambda kv: -sum(q.get("count", 0) for q in kv[1]))
+        for i, (topic, questions) in enumerate(ordered):
+            total = sum(q.get("count", 0) for q in questions)
+            with st.expander(f"{_topic_label(topic)} · {total} customers asked",
+                             expanded=(i == 0)):
+                for q in questions:
+                    ex = q.get("example", "")
+                    st.markdown(
+                        f"<div style='display:flex;gap:10px;align-items:baseline;"
+                        f"margin-bottom:6px'>"
+                        f"<span style='background:{THEME['primary_pale']};"
+                        f"color:{THEME['primary_dark']};font-weight:700;font-size:12px;"
+                        f"padding:1px 9px;border-radius:20px;min-width:34px;"
+                        f"text-align:center'>{q.get('count', 0)}</span>"
+                        f"<span><b>{q.get('question','')}</b>"
+                        + (f"<br><span style='color:#94A3B8;font-size:12px'>e.g. "
+                           f"“{ex}”</span>" if ex else "")
+                        + "</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+        st.divider()
 
     # ── Top themes (grouped + ranked, with examples) ─────────────────────────
     st.subheader("📊 Top themes — what customers keep asking")
