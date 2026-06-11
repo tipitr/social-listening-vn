@@ -953,10 +953,12 @@ def render_inbox() -> None:
     k2.metric("Distinct chats", inbox["conversation_ref"].nunique())
     k3.metric("This month", int((inbox["month"] == _this_month).sum()))
 
-    # ── AI insight brief (the "so what") ─────────────────────────────────────
-    st.subheader("🧠 Insight brief")
+    # ── AI insight brief — enquiry topics + communication angles ─────────────
+    st.subheader("🧠 Insight brief — what they ask & how to answer it")
+    st.caption("Enquiry topics, the concern behind each, and ready-to-brief "
+               "communication ideas to address them proactively.")
     if st.button("✨ Generate / refresh brief", help="Reads the inbox and writes "
-                 "the top themes + recommended actions"):
+                 "enquiry topics + communication opportunities"):
         with st.spinner("Reading the inbox and finding themes…"):
             try:
                 generate_inbox_insight()
