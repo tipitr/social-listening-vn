@@ -28,6 +28,15 @@ ON CONFLICT (url) DO NOTHING;
 """
 
 
+_INSERT_MESSAGE = """
+INSERT INTO inbox_messages
+    (fb_message_id, conversation_ref, message, sent_at, created_at)
+VALUES
+    (:fb_message_id, :conversation_ref, :message, :sent_at, :created_at)
+ON CONFLICT (fb_message_id) DO NOTHING;
+"""
+
+
 def init_db() -> None:
     """Create tables on first run and apply any column migrations. Idempotent."""
     db.init_schema()
@@ -82,6 +91,36 @@ def save(articles: list[dict]) -> int:
     return inserted
 
 
+def save_messages(messages: list[dict]) -> int:
+    """Insert inbox messages, skip duplicates (by fb_message_id). Returns new rows.
+
+    Messages arrive already PII-masked and anonymized from
+    scrapers/facebook_inbox.py — this layer only persists them.
+    """
+    if not messages:
+        return 0
+
+    now = now_iso()
+    rows = [
+        {
+            "fb_message_id":    m.get("fb_message_id", ""),
+            "conversation_ref": m.get("conversation_ref", ""),
+            "message":          m.get("message", ""),
+            "sent_at":          m.get("sent_at", now),
+            "created_at":       now,
+        }
+        for m in messages
+    ]
+
+    with db.connect() as conn:
+        cursor = conn.executemany(_INSERT_MESSAGE, rows)
+        inserted = cursor.rowcount if cursor.rowcount >= 0 else len(rows)
+
+    logger.info("Saved %d new inbox messages (skipped %d duplicates)",
+                inserted, len(rows) - inserted)
+    return inserted
+
+
 def fetch_recent(days: int = 7) -> list[dict]:
     """Return articles from the last N days (GMT+7), newest first."""
     sql = """
@@ -112,14 +151,16 @@ def collect_all() -> int:
         from scrapers.forums import scrape as scrape_forums
         articles = scrape_news() + scrape_forums()
 
-    # Two Facebook backends — pick whichever has credentials.
-    # Meta Graph API is the canonical path but App ID + Secret review can take
-    # weeks. RapidAPI "Facebook Scraper3" is the bridge — same output shape,
-    # 5-minute setup. If both are set, the Meta one wins (more reliable).
+    # Two Facebook backends that cover DIFFERENT pages, so both run together:
+    #   • Graph API (scrapers/facebook) — KBank's OWN page only. A Page token
+    #     can read its own page's posts + customer comments, nothing else.
+    #   • RapidAPI "Facebook Scraper3" — the competitor/developer pages in
+    #     config/sources.yaml, which a Page token is not allowed to read.
+    # No overlap (KBank's own page isn't in facebook_pages), so we add both.
     if os.getenv("FACEBOOK_ACCESS_TOKEN") or os.getenv("FACEBOOK_APP_ID"):
         from scrapers.facebook import scrape as scrape_facebook
         articles += scrape_facebook()
-    elif os.getenv("RAPIDAPI_KEY"):
+    if os.getenv("RAPIDAPI_KEY"):
         from scrapers.facebook_scraper3 import scrape as scrape_facebook_rapid
         articles += scrape_facebook_rapid()
 
@@ -140,6 +181,18 @@ def collect_all() -> int:
             categorize()
         except Exception as exc:
             logger.error("Categorizer failed after collect: %s", exc)
+
+    # Facebook page inbox — private home-loan chats, masked + stored separately.
+    # Self-contained try/except so an inbox hiccup never breaks the main scrape.
+    if os.getenv("FACEBOOK_ACCESS_TOKEN"):
+        try:
+            from scrapers.facebook_inbox import scrape as scrape_inbox
+            new_msgs = save_messages(scrape_inbox())
+            if new_msgs > 0:
+                from pipeline.categorizer import run_inbox
+                run_inbox()
+        except Exception as exc:
+            logger.error("Inbox collection failed (continuing): %s", exc)
 
     return inserted
 

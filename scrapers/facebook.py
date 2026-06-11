@@ -13,7 +13,7 @@ import requests
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pipeline.config_loader import load_keywords, load_sources  # noqa: E402
+from pipeline.config_loader import load_keywords  # noqa: E402
 from pipeline.timeutils import LOCAL_TZ, now_iso  # noqa: E402
 
 load_dotenv(override=True)  # see pipeline/categorizer.py for rationale
@@ -67,6 +67,26 @@ def _get_token() -> Optional[str]:
     if app_id and app_secret:
         return f"{app_id}|{app_secret}"
     return None
+
+
+def _resolve_own_page(token: str) -> Optional[tuple]:
+    """The page this token belongs to — the only page a Page token can read.
+
+    A Facebook Page access token grants read access to its *own* page only,
+    never to other banks' pages (those go through the RapidAPI scraper). So
+    this scraper monitors KBank's own page: its posts and, more valuably, the
+    home-loan comments customers leave on them.
+
+    Prefers ``FACEBOOK_PAGE_ID`` from .env; falls back to asking Graph who
+    ``me`` is. Returns ``(page_id, page_name)`` or ``None``.
+    """
+    env_id = os.getenv("FACEBOOK_PAGE_ID")
+    try:
+        data = _graph_get(env_id or "me", token, fields="id,name")
+        return data.get("id", env_id), data.get("name", "KBank Vietnam")
+    except Exception as exc:
+        logger.warning("Could not resolve own Facebook page: %s", exc)
+        return (env_id, "KBank Vietnam") if env_id else None
 
 
 # ── Graph API calls ───────────────────────────────────────────────────────────
@@ -165,41 +185,43 @@ def scrape(include_comments: bool = True) -> list[dict]:
         )
         return []
 
+    own = _resolve_own_page(token)
+    if not own:
+        logger.error("Facebook Graph token set but no readable page found "
+                     "(set FACEBOOK_PAGE_ID in .env).")
+        return []
+    page_id, page_name = own
+    page_url = f"https://facebook.com/{page_id}"
+
     kw_cfg  = load_keywords()
-    src_cfg = load_sources()
     keywords  = _all_keywords(kw_cfg)
     negatives = _negative_keywords(kw_cfg)
 
     all_results = []
 
-    for page in src_cfg.get("facebook_pages", []):
-        page_name = page["name"]
-        page_id   = page["page_id"]
-        page_url  = f"https://facebook.com/{page_id}"
+    logger.info("Facebook (Graph, own page): %s (%s)", page_name, page_id)
+    posts = _fetch_posts(page_id, token)
+    logger.info("  → %d posts fetched", len(posts))
 
-        logger.info("Facebook: %s (%s)", page_name, page_id)
-        posts = _fetch_posts(page_id, token)
-        logger.info("  → %d posts fetched", len(posts))
+    post_hits    = 0
+    comment_hits = 0
 
-        post_hits    = 0
-        comment_hits = 0
+    for post in posts:
+        article = _post_to_article(post, page_name, page_url, keywords, negatives)
+        if article:
+            all_results.append(article)
+            post_hits += 1
 
-        for post in posts:
-            article = _post_to_article(post, page_name, page_url, keywords, negatives)
-            if article:
-                all_results.append(article)
-                post_hits += 1
+        if include_comments:
+            post_url = post.get("permalink_url") or f"https://facebook.com/{post['id']}"
+            for comment in _fetch_comments(post["id"], token):
+                c = _comment_to_article(comment, page_name, post_url, keywords, negatives)
+                if c:
+                    all_results.append(c)
+                    comment_hits += 1
 
-            if include_comments:
-                post_url = post.get("permalink_url") or f"https://facebook.com/{post['id']}"
-                for comment in _fetch_comments(post["id"], token):
-                    c = _comment_to_article(comment, page_name, post_url, keywords, negatives)
-                    if c:
-                        all_results.append(c)
-                        comment_hits += 1
-
-        logger.info("  → %d posts + %d comments relevant from %s",
-                    post_hits, comment_hits, page_name)
+    logger.info("  → %d posts + %d comments relevant from %s",
+                post_hits, comment_hits, page_name)
 
     return all_results
 

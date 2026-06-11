@@ -215,6 +215,38 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 """
 
+_CREATE_INBOX_SQLITE = """
+CREATE TABLE IF NOT EXISTS inbox_messages (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    fb_message_id    TEXT    UNIQUE NOT NULL,
+    conversation_ref TEXT,
+    message          TEXT    NOT NULL,
+    category         TEXT,
+    sentiment        TEXT,
+    intent           TEXT,
+    summary_vi       TEXT,
+    summary_en       TEXT,
+    sent_at          TEXT    NOT NULL,
+    created_at       TEXT    NOT NULL
+);
+"""
+
+_CREATE_INBOX_PG = """
+CREATE TABLE IF NOT EXISTS inbox_messages (
+    id               BIGSERIAL PRIMARY KEY,
+    fb_message_id    TEXT      UNIQUE NOT NULL,
+    conversation_ref TEXT,
+    message          TEXT      NOT NULL,
+    category         TEXT,
+    sentiment        TEXT,
+    intent           TEXT,
+    summary_vi       TEXT,
+    summary_en       TEXT,
+    sent_at          TEXT      NOT NULL,
+    created_at       TEXT      NOT NULL
+);
+"""
+
 _CREATE_USAGE_LOG_SQLITE = """
 CREATE TABLE IF NOT EXISTS usage_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -254,10 +286,12 @@ def init_schema() -> None:
     """Create tables if missing and add any newer columns. Safe to call repeatedly."""
     articles_sql  = _CREATE_ARTICLES_PG  if IS_POSTGRES else _CREATE_ARTICLES_SQLITE
     usage_log_sql = _CREATE_USAGE_LOG_PG if IS_POSTGRES else _CREATE_USAGE_LOG_SQLITE
+    inbox_sql     = _CREATE_INBOX_PG     if IS_POSTGRES else _CREATE_INBOX_SQLITE
 
     with connect() as conn:
         conn.execute(articles_sql)
         conn.execute(usage_log_sql)
+        conn.execute(inbox_sql)
 
         if IS_POSTGRES:
             for col, dtype in _MIGRATION_COLS.items():
@@ -280,6 +314,10 @@ def init_schema() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_usage_log_service_created "
             "ON usage_log(service, created_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_inbox_sent_at "
+            "ON inbox_messages(sent_at DESC)"
         )
 
 

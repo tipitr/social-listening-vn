@@ -67,24 +67,44 @@ _UPDATE_ARTICLE = """
     WHERE id = :id;
 """
 
+# Inbox messages get the same five labels, written to their own table.
+_FETCH_UNCAT_INBOX = """
+    SELECT id, message
+    FROM inbox_messages
+    WHERE (sentiment IS NULL OR summary_en IS NULL)
+      AND length(COALESCE(message, '')) >= :min_len
+    ORDER BY id
+    LIMIT :batch_size;
+"""
+
+_UPDATE_INBOX = """
+    UPDATE inbox_messages
+    SET sentiment  = :sentiment,
+        category   = :category,
+        intent     = :intent,
+        summary_vi = :summary_vi,
+        summary_en = :summary_en
+    WHERE id = :id;
+"""
+
 _VALID_SENTIMENTS  = {"positive", "negative", "neutral"}
 _VALID_CATEGORIES  = {"interest_rate", "loan_approval", "bank_comparison",
                       "complaint", "promotion", "general"}
 _VALID_INTENTS     = {"seeking_info", "sharing_experience", "complaint", "promotion"}
 
 
-def _fetch_batch(batch_size: int, min_len: int) -> list[dict]:
+def _fetch_batch(fetch_sql: str, batch_size: int, min_len: int) -> list[dict]:
     with db.connect() as conn:
         rows = conn.execute(
-            _FETCH_UNCATEGORIZED,
+            fetch_sql,
             {"batch_size": batch_size, "min_len": min_len},
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-def _update_batch(results: list[dict]) -> int:
+def _update_batch(update_sql: str, results: list[dict]) -> int:
     with db.connect() as conn:
-        conn.executemany(_UPDATE_ARTICLE, results)
+        conn.executemany(update_sql, results)
     return len(results)
 
 
@@ -110,19 +130,20 @@ def _validate(item: dict) -> dict:
     }
 
 
-def _build_user_message(articles: list[dict]) -> str:
-    items = [
-        {"id": a["id"], "title": a["title"], "content": a.get("summary", "")}
-        for a in articles
-    ]
+def _build_user_message(items: list[dict]) -> str:
+    """Items are already shaped as {id, title, content}."""
     return (
         "Phân tích các bài viết sau và trả về JSON array:\n\n"
         + json.dumps(items, ensure_ascii=False, indent=2)
     )
 
 
-def run() -> int:
-    """Categorize all pending articles. Returns total count categorized."""
+def _categorize(fetch_sql: str, update_sql: str, to_item, label: str) -> int:
+    """Shared loop: fetch uncategorized rows, label with Claude, write back.
+
+    ``to_item`` maps a DB row to the {id, title, content} shape Claude reads,
+    so the same prompt works for both articles and inbox messages.
+    """
     init_db()
 
     cfg = load_settings()
@@ -134,12 +155,12 @@ def run() -> int:
     total_categorized = 0
 
     while True:
-        batch = _fetch_batch(batch_size, min_len)
+        batch = _fetch_batch(fetch_sql, batch_size, min_len)
         if not batch:
             break
 
-        logger.info("Processing batch of %d articles (ids %d–%d)",
-                    len(batch), batch[0]["id"], batch[-1]["id"])
+        logger.info("Processing batch of %d %s (ids %d–%d)",
+                    len(batch), label, batch[0]["id"], batch[-1]["id"])
         try:
             response = client.messages.create(
                 model=MODEL,
@@ -151,14 +172,15 @@ def run() -> int:
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
-                messages=[{"role": "user", "content": _build_user_message(batch)}],
+                messages=[{"role": "user",
+                           "content": _build_user_message([to_item(r) for r in batch])}],
             )
             raw = response.content[0].text
             parsed = _extract_json(raw)
             validated = [_validate(item) for item in parsed]
-            saved = _update_batch(validated)
+            saved = _update_batch(update_sql, validated)
             total_categorized += saved
-            logger.info("  → categorized %d articles", saved)
+            logger.info("  → categorized %d %s", saved, label)
 
             # Log token usage — Sonnet 4.6: $3/$15 per 1M in/out
             u = response.usage
@@ -168,7 +190,7 @@ def run() -> int:
         except json.JSONDecodeError as exc:
             # Transient — Claude occasionally returns half-truncated JSON.
             # Skip this batch but keep processing the rest so a single bad
-            # response doesn't strand the day's articles uncategorized.
+            # response doesn't strand the day's items uncategorized.
             logger.error("Failed to parse JSON response for batch (skipping): %s", exc)
             continue
         except anthropic.AuthenticationError as exc:
@@ -181,8 +203,26 @@ def run() -> int:
             logger.error("Claude API error for batch (skipping): %s", exc)
             continue
 
-    logger.info("Done. Total categorized this run: %d", total_categorized)
+    logger.info("Done. Total %s categorized this run: %d", label, total_categorized)
     return total_categorized
+
+
+def run() -> int:
+    """Categorize all pending articles. Returns total count categorized."""
+    return _categorize(
+        _FETCH_UNCATEGORIZED, _UPDATE_ARTICLE,
+        lambda r: {"id": r["id"], "title": r["title"], "content": r.get("summary", "")},
+        "articles",
+    )
+
+
+def run_inbox() -> int:
+    """Categorize all pending inbox messages. Returns total count categorized."""
+    return _categorize(
+        _FETCH_UNCAT_INBOX, _UPDATE_INBOX,
+        lambda r: {"id": r["id"], "title": "", "content": r["message"]},
+        "inbox messages",
+    )
 
 
 if __name__ == "__main__":

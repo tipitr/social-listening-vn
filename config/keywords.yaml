@@ -146,3 +146,43 @@ home_loan:
     - miễn trung gian
     - cho thuê
     - phòng trọ
+
+# ── Inbox (private Messenger DMs) ────────────────────────────────────────────
+# Tuned for chat language, NOT the strict page-post filter. Real customers DM
+# about "thế chấp" (mortgage) and "đáo thế chấp" (mortgage rollover) without
+# always typing "mua nhà". A message is kept if it hits an `include` term and
+# none of the `exclude` terms. `exclude` removes KBank VN's heavy card / savings
+# / car-loan inbox noise so only genuine home-/property-loan chats remain.
+inbox:
+  include:
+    - vay mua nhà
+    - mua nhà
+    - mua căn hộ
+    - căn hộ
+    - chung cư
+    - bất động sản
+    - bđs
+    - vay thế chấp
+    - thế chấp nhà
+    - thế chấp bất động sản
+    - thế chấp bđs
+    - đáo thế chấp
+    - khoản vay mua
+    - vay mua căn hộ
+    - vay mua bđs
+    - vay mua đất
+    - mua đất
+    - sổ đỏ
+    - sổ hồng
+  exclude:
+    - thế chấp thẻ
+    - thế chấp sổ
+    - sổ thế chấp
+    - thế chấp tiết kiệm
+    - thế chấp tiền gửi
+    - vay mua xe
+    - mua xe
+    - dư nợ thẻ
+    - làm thẻ
+    - hủy thẻ
+    - huỷ thẻ
