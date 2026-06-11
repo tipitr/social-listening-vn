@@ -892,6 +892,131 @@ sel_src  = st.session_state["sel_src"]
 sel_sent = st.session_state["sel_sent"]
 sel_cat  = st.session_state["sel_cat"]
 
+# ── Top-level view switch — two products, one app ───────────────────────────
+# "Social Listening" watches the OUTSIDE world (competitors, news, forums,
+# public posts). "Customer Inbox" is the private 1:1 messages from our OWN
+# customers. They answer different questions for different teams, so they live
+# on separate screens instead of being mixed into one tab strip.
+def render_inbox() -> None:
+    _CAT_LABEL = {
+        "interest_rate":   "Interest rate",
+        "loan_approval":   "Loan approval",
+        "bank_comparison": "Bank comparison",
+        "complaint":       "Complaint",
+        "promotion":       "Promotion",
+        "general":         "General",
+    }
+
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:4px 0 2px">Customer Inbox · Private home-loan chats on KBank\'s page</div>'
+    )
+    st.caption("These are private 1:1 messages from KBank's own customers — separate "
+               "from the public market chatter in Social Listening. Personal info "
+               "(names, phones, emails) is masked; threads show only an anonymous id; "
+               "page replies are excluded.")
+
+    @st.cache_data(ttl=60)
+    def load_inbox() -> "pd.DataFrame":
+        # Full history (not the sidebar day-window) — the point here is the
+        # month-over-month trend, which needs every message we've collected.
+        try:
+            return db.read_sql_df(
+                "SELECT conversation_ref, message, category, sentiment, intent, "
+                "summary_en, sent_at FROM inbox_messages ORDER BY sent_at DESC"
+            )
+        except Exception:
+            return pd.DataFrame()
+
+    inbox = load_inbox()
+
+    if inbox.empty:
+        st.info("📭 No home-loan chats captured yet. As customers message KBank's "
+                "page about home loans, they'll appear here — the daily scrape "
+                "checks the inbox automatically.")
+        return
+
+    inbox["month"] = inbox["sent_at"].str[:7]
+
+    # ── KPIs ────────────────────────────────────────────────────────────────
+    _this_month = now_iso()[:7]
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Home-loan messages", len(inbox))
+    k2.metric("Distinct chats", inbox["conversation_ref"].nunique())
+    k3.metric("This month", int((inbox["month"] == _this_month).sum()))
+
+    # ── Monthly volume trend ─────────────────────────────────────────────────
+    st.subheader("📈 Home-loan chats by month")
+    vol = inbox.groupby("month").size().reset_index(name="Messages")
+    fig = px.bar(vol, x="month", y="Messages", height=300,
+                 color_discrete_sequence=[THEME["primary_light"]])
+    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
+                      xaxis_title=None, yaxis_title=None)
+    st.plotly_chart(fig, use_container_width=True)
+
+    cL, cR = st.columns(2)
+
+    # ── What they ask about, month by month ──────────────────────────────────
+    with cL:
+        st.subheader("🏷️ What customers ask about")
+        cat = inbox.groupby(["month", "category"]).size().reset_index(name="Count")
+        cat["category"] = cat["category"].map(_CAT_LABEL).fillna(cat["category"])
+        fig = px.bar(cat, x="month", y="Count", color="category",
+                     barmode="stack", height=300)
+        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
+                          xaxis_title=None, yaxis_title=None,
+                          legend=dict(orientation="h", y=-0.2, title=None))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Mood ──────────────────────────────────────────────────────────────────
+    with cR:
+        st.subheader("😊 Customer mood")
+        sd = inbox["sentiment"].value_counts().reset_index()
+        sd.columns = ["Sentiment", "Count"]
+        fig = px.pie(sd, names="Sentiment", values="Count", hole=0.55,
+                     color="Sentiment", color_discrete_map=SENT_COLOR, height=300)
+        fig.update_traces(textposition="outside", textinfo="percent+label")
+        fig.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Recent messages (masked, English-first) ──────────────────────────────
+    st.subheader("💬 Recent home-loan messages")
+    st.caption("English summary up top so it's readable at a glance; the "
+               "original Vietnamese (personal details masked) is shown below it.")
+    for _, r in inbox.head(15).iterrows():
+        chip = CATEGORY_CHIP.get(r["category"], CATEGORY_CHIP["general"])
+        label = _CAT_LABEL.get(r["category"], r["category"])
+        en = (r.get("summary_en") or "").strip()
+        en_html = (
+            f'<div style="font-size:14px;color:{THEME["text"]};font-weight:600;'
+            f'margin-bottom:3px">🇬🇧 {en}</div>' if en else ""
+        )
+        st.html(
+            f'<div style="border:1px solid {THEME["card_border"]};border-radius:10px;'
+            f'padding:10px 14px;margin-bottom:8px;background:{THEME["card_bg"]}">'
+            f'<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px">'
+            f'<span style="font-family:monospace;font-size:11px;color:#64748B">{r["conversation_ref"]}</span>'
+            f'<span style="background:{chip["bg"]};color:{chip["fg"]};padding:1px 9px;'
+            f'border-radius:20px;font-size:11px;font-weight:600">{label}</span>'
+            f'<span style="font-size:11px;color:#64748B;margin-left:auto">{r["sent_at"][:10]}</span>'
+            f'</div>'
+            f'{en_html}'
+            f'<div style="font-size:13px;color:{THEME["text_muted"]}">🇻🇳 {r["message"]}</div>'
+            f'</div>'
+        )
+
+
+_view = st.radio(
+    "View",
+    ["📡 Social Listening", "💬 Customer Inbox"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
+if _view == "💬 Customer Inbox":
+    render_inbox()
+    st.stop()   # don't render any of the Social Listening hero / KPIs / tabs below
+
 # ── Hero "Story of the Day" ──────────────────────────────────────────────────
 # Auto-generates an editorial headline from the actual data so the dashboard
 # opens like a daily briefing rather than a control panel.
@@ -1212,20 +1337,20 @@ with dl_right:
 _qp = st.query_params
 _admin_mode = _qp.get("admin", "0") == "1"
 
-_tab_labels = ["Daily Brief", "Analytics", "Competitors", "Inbox", "AI Insights"]
+_tab_labels = ["Daily Brief", "Analytics", "Competitors", "AI Insights"]
 if _admin_mode:
     _tab_labels.append("Cost")
 
 _tabs = st.tabs(_tab_labels)
 # Tab order reflects user journey: actionable first → broad analytics →
-# competitor lens → inbox (own customers) → AI summary. Daily Brief surfaces
-# what needs attention now; Analytics is the slower-burn dashboard.
+# competitor lens → AI summary. Daily Brief surfaces what needs attention now;
+# Analytics is the slower-burn dashboard. (Customer Inbox is its own top-level
+# view, not a tab here — see render_inbox() above.)
 tab_action_feed  = _tabs[0]   # "Daily Brief"
 tab_overview     = _tabs[1]   # "Analytics"
 tab_competitor   = _tabs[2]   # "Competitors"
-tab_inbox        = _tabs[3]   # "Inbox"
-tab_insights     = _tabs[4]   # "AI Insights"
-tab_cost         = _tabs[5] if _admin_mode else None
+tab_insights     = _tabs[3]   # "AI Insights"
+tab_cost         = _tabs[4] if _admin_mode else None
 
 # ═══════════════════════════════════════════════════════════
 # TAB 1 — ACTION FEED  (priority-sorted articles)
@@ -1916,118 +2041,7 @@ with tab_overview:
 
 
 # ═══════════════════════════════════════════════════════════
-# TAB 4 — INBOX  (private Messenger chats — home-loan signal)
-# ═══════════════════════════════════════════════════════════
-
-with tab_inbox:
-    _CAT_LABEL = {
-        "interest_rate":   "Interest rate",
-        "loan_approval":   "Loan approval",
-        "bank_comparison": "Bank comparison",
-        "complaint":       "Complaint",
-        "promotion":       "Promotion",
-        "general":         "General",
-    }
-
-    st.html(
-        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
-        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
-        'margin:4px 0 2px">Inbox · Private home-loan chats on KBank\'s page</div>'
-    )
-    st.caption("Personal info (names, phone numbers, emails) is masked before "
-               "storage. Threads show only an anonymous id. Page replies are excluded.")
-
-    @st.cache_data(ttl=60)
-    def load_inbox() -> "pd.DataFrame":
-        # Full history (not the sidebar day-window) — the point here is the
-        # month-over-month trend, which needs every message we've collected.
-        try:
-            return db.read_sql_df(
-                "SELECT conversation_ref, message, category, sentiment, intent, "
-                "summary_en, sent_at FROM inbox_messages ORDER BY sent_at DESC"
-            )
-        except Exception:
-            return pd.DataFrame()
-
-    inbox = load_inbox()
-
-    if inbox.empty:
-        st.info("📭 No home-loan chats captured yet. As customers message KBank's "
-                "page about home loans, they'll appear here — the daily scrape "
-                "checks the inbox automatically.")
-    else:
-        inbox["month"] = inbox["sent_at"].str[:7]
-
-        # ── KPIs ────────────────────────────────────────────────────────────
-        _this_month = now_iso()[:7]
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Home-loan messages", len(inbox))
-        k2.metric("Distinct chats", inbox["conversation_ref"].nunique())
-        k3.metric("This month", int((inbox["month"] == _this_month).sum()))
-
-        # ── Monthly volume trend ────────────────────────────────────────────
-        st.subheader("📈 Home-loan chats by month")
-        vol = inbox.groupby("month").size().reset_index(name="Messages")
-        fig = px.bar(vol, x="month", y="Messages", height=300,
-                     color_discrete_sequence=[THEME["primary_light"]])
-        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
-                          xaxis_title=None, yaxis_title=None)
-        st.plotly_chart(fig, use_container_width=True)
-
-        cL, cR = st.columns(2)
-
-        # ── What they ask about, month by month ─────────────────────────────
-        with cL:
-            st.subheader("🏷️ What customers ask about")
-            cat = inbox.groupby(["month", "category"]).size().reset_index(name="Count")
-            cat["category"] = cat["category"].map(_CAT_LABEL).fillna(cat["category"])
-            fig = px.bar(cat, x="month", y="Count", color="category",
-                         barmode="stack", height=300)
-            fig.update_layout(margin=dict(t=10, b=0, l=0, r=0),
-                              xaxis_title=None, yaxis_title=None,
-                              legend=dict(orientation="h", y=-0.2, title=None))
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ── Mood ────────────────────────────────────────────────────────────
-        with cR:
-            st.subheader("😊 Customer mood")
-            sd = inbox["sentiment"].value_counts().reset_index()
-            sd.columns = ["Sentiment", "Count"]
-            fig = px.pie(sd, names="Sentiment", values="Count", hole=0.55,
-                         color="Sentiment", color_discrete_map=SENT_COLOR, height=300)
-            fig.update_traces(textposition="outside", textinfo="percent+label")
-            fig.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0))
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ── Recent messages (masked, English-first) ─────────────────────────
-        st.subheader("💬 Recent home-loan messages")
-        st.caption("English summary up top so it's readable at a glance; the "
-                   "original Vietnamese (personal details masked) is shown below it.")
-        for _, r in inbox.head(15).iterrows():
-            chip = CATEGORY_CHIP.get(r["category"], CATEGORY_CHIP["general"])
-            label = _CAT_LABEL.get(r["category"], r["category"])
-            en = (r.get("summary_en") or "").strip()
-            en_html = (
-                f'<div style="font-size:14px;color:{THEME["text"]};font-weight:600;'
-                f'margin-bottom:3px">🇬🇧 {en}</div>' if en else ""
-            )
-            st.html(
-                f'<div style="border:1px solid {THEME["card_border"]};border-radius:10px;'
-                f'padding:10px 14px;margin-bottom:8px;background:{THEME["card_bg"]}">'
-                f'<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px">'
-                f'<span style="font-family:monospace;font-size:11px;color:#64748B">{r["conversation_ref"]}</span>'
-                f'<span style="background:{chip["bg"]};color:{chip["fg"]};padding:1px 9px;'
-                f'border-radius:20px;font-size:11px;font-weight:600">{label}</span>'
-                f'<span style="font-size:11px;color:#64748B;margin-left:auto">{r["sent_at"][:10]}</span>'
-                f'</div>'
-                f'{en_html}'
-                f'<div style="font-size:13px;color:{THEME["text_muted"]}">🇻🇳 {r["message"]}</div>'
-                f'</div>'
-            )
-
-
-# ═══════════════════════════════════════════════════════════
-# TAB 5 — INSIGHTS  (AI-generated report)
+# TAB 4 — INSIGHTS  (AI-generated report)
 # ═══════════════════════════════════════════════════════════
 
 with tab_insights:
