@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Optional
 
 import anthropic
 from dotenv import load_dotenv
@@ -176,18 +177,22 @@ def _build_user_message(items: list[dict]) -> str:
 
 
 def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
-                system_prompt: str = SYSTEM_PROMPT, validate_fn=_validate) -> int:
+                system_prompt: str = SYSTEM_PROMPT, validate_fn=_validate,
+                min_len_override: Optional[int] = None) -> int:
     """Shared loop: fetch uncategorized rows, label with Claude, write back.
 
     ``to_item`` maps a DB row to the {id, title, content} shape Claude reads.
     ``system_prompt`` / ``validate_fn`` differ between articles (6 categories)
-    and inbox messages (richer topic taxonomy).
+    and inbox messages (richer topic taxonomy). ``min_len_override`` lets the
+    inbox accept short-but-real enquiries (e.g. "vay thế chấp") that the
+    article-tuned floor would skip.
     """
     init_db()
 
     cfg = load_settings()
     batch_size = cfg.get("categorizer", {}).get("batch_size", 20)
-    min_len    = cfg.get("categorizer", {}).get("min_content_length", 20)
+    min_len    = (min_len_override if min_len_override is not None
+                  else cfg.get("categorizer", {}).get("min_content_length", 20))
 
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -263,6 +268,7 @@ def run_inbox() -> int:
         "inbox messages",
         system_prompt=_build_inbox_prompt(),
         validate_fn=_validate_inbox,
+        min_len_override=5,   # inbox enquiries are short ("vay thế chấp" = 12 chars)
     )
 
 
