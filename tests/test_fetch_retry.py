@@ -35,7 +35,8 @@ def test_get_soup_retries_then_succeeds(monkeypatch):
 
 
 def test_get_soup_returns_none_after_all_retries(monkeypatch):
-    monkeypatch.setattr("scrapers.fetch.time.sleep", lambda s: None)
+    waits = []
+    monkeypatch.setattr("scrapers.fetch.time.sleep", lambda s: waits.append(s))
 
     with patch("scrapers.fetch.requests.get") as mock_get:
         mock_get.side_effect = requests.ConnectionError("dead site")
@@ -44,6 +45,8 @@ def test_get_soup_returns_none_after_all_retries(monkeypatch):
 
     assert soup is None, "must degrade gracefully, never raise"
     assert mock_get.call_count == 3
+    # delay=0 → politeness sleep is 0; then backoff 2s and 4s; no third backoff before returning
+    assert waits == [0, 2, 4]
 
 
 def test_get_soup_always_sets_timeout():
