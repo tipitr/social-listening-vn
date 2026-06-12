@@ -37,15 +37,17 @@ MAX_QUESTIONS = 8    # cap questions surfaced per topic
 
 SYSTEM_PROMPT = """\
 You are a content strategist for a bank's home-loan team. You are given customer
-enquiry summaries that all belong to ONE topic. Group them into the TOP distinct
-recurring QUESTIONS customers ask — the level a content writer would each answer
-with one FAQ entry, post, or page section.
+enquiry items that all belong to ONE topic. Each item has an English summary and
+the original Vietnamese message. Group them into the TOP distinct recurring
+QUESTIONS customers ask — the level a content writer would each answer with one
+FAQ entry, post, or page section.
 
 Return ONLY a JSON array (no markdown), ordered by count descending, each item:
 - "question": the canonical question, phrased clearly in English as a content
   writer would title it (e.g. "How do I start a home loan application?")
-- "count": integer — roughly how many of the summaries fall under it
-- "example": one short representative customer phrasing (English)
+- "count": integer — roughly how many items fall under it
+- "example": one short representative customer phrasing copied VERBATIM from the
+  original Vietnamese messages (so copywriters can mirror real customer words)
 
 Merge near-duplicates. Only include questions genuinely present. Max 8 items."""
 
@@ -59,12 +61,12 @@ def _messages_by_topic() -> dict:
     try:
         with db.connect() as conn:
             rows = conn.execute(
-                "SELECT topic, summary_en FROM inbox_messages "
+                "SELECT topic, summary_en, message FROM inbox_messages "
                 "WHERE summary_en IS NOT NULL AND topic IS NOT NULL"
             ).fetchall()
         for r in rows:
             d = dict(r)
-            by_topic[d["topic"]].append(d["summary_en"])
+            by_topic[d["topic"]].append({"summary": d["summary_en"], "vi": d["message"]})
     except Exception as exc:
         logger.warning("Could not load inbox messages: %s", exc)
     return by_topic

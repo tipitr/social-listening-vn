@@ -917,15 +917,7 @@ def _topic_label(t: str) -> str:
 def render_inbox() -> None:
     from pipeline.inbox_insight import generate_inbox_insight, get_latest_inbox_insight
     from pipeline.inbox_questions import generate_question_map, get_question_map
-
-    st.html(
-        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
-        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
-        'margin:4px 0 2px">Customer Inbox · Private home-loan chats on KBank\'s page</div>'
-    )
-    st.caption("Private 1:1 messages from KBank's own customers — separate from the "
-               "public market chatter in Social Listening. Personal info is masked; "
-               "threads show only an anonymous id; page replies are excluded.")
+    from pipeline.inbox_draft import draft_for_question
 
     @st.cache_data(ttl=60)
     def load_inbox() -> "pd.DataFrame":
@@ -938,115 +930,125 @@ def render_inbox() -> None:
             return pd.DataFrame()
 
     inbox = load_inbox()
-    if inbox.empty:
-        st.info("📭 No home-loan chats captured yet. As customers message KBank's "
-                "page about home loans, they'll appear here — the daily scrape "
-                "checks the inbox automatically.")
-        return
 
-    inbox["month"] = inbox["sent_at"].str[:7]
-    inbox["topic"] = inbox["topic"].fillna("other")
-
-    # ── KPIs ────────────────────────────────────────────────────────────────
-    _this_month = now_iso()[:7]
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Home-loan messages", len(inbox))
-    k2.metric("Distinct chats", inbox["conversation_ref"].nunique())
-    k3.metric("This month", int((inbox["month"] == _this_month).sum()))
-
-    # ── AI insight brief — enquiry topics + communication angles ─────────────
-    st.subheader("🧠 Insight brief — what they ask & how to answer it")
-    st.caption("Enquiry topics, the concern behind each, and ready-to-brief "
-               "communication ideas to address them proactively.")
-    if st.button("✨ Generate / refresh insight", help="Reads the inbox and writes "
-                 "the brief + the content backlog of questions to answer"):
+    # ── Header + the single primary action ───────────────────────────────────
+    head_l, head_r = st.columns([3, 1])
+    with head_l:
+        st.markdown("#### 💬 Customer inbox")
+    with head_r:
+        refresh = st.button("✨ Refresh insight", use_container_width=True,
+                            help="Re-read the inbox: brief + content backlog")
+    st.caption("Private 1:1 home-loan messages from KBank's own customers — a source "
+               "for designing communication. Personal info masked; page replies excluded.")
+    if refresh:
         with st.spinner("Reading the inbox, finding themes and mining questions…"):
             try:
                 generate_inbox_insight()
                 generate_question_map()
                 st.cache_data.clear()
+                st.rerun()
             except Exception as exc:
-                st.error(f"Couldn't generate the insight: {exc}")
-    brief = get_latest_inbox_insight()
-    if brief:
-        st.markdown(brief)
-    else:
-        st.info("Click **Generate / refresh insight** to have AI summarize the top "
-                "themes and mine the exact questions to answer.")
+                st.error(f"Couldn't refresh: {exc}")
 
-    st.divider()
+    if inbox.empty:
+        st.info("📭 No home-loan chats captured yet. As customers message KBank's "
+                "page about home loans, they'll appear here automatically.")
+        return
 
-    # ── Content backlog — the exact questions to answer ──────────────────────
+    inbox["month"] = inbox["sent_at"].str[:7]
+    inbox["topic"] = inbox["topic"].fillna("other")
+
+    # ── Hero takeaway — lead with the story, not the charts ──────────────────
+    dist = inbox["topic"].value_counts()
+    top_topic = dist.index[0]
+    top_pct = round(dist.iloc[0] / len(inbox) * 100)
+    st.html(
+        f'<div style="background:{THEME["bg_alt"]};border-radius:14px;'
+        f'padding:16px 20px;margin:6px 0 14px">'
+        f'<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">'
+        f'<span style="font-size:26px;font-weight:700;color:{THEME["text"]}">{len(inbox)}</span>'
+        f'<span style="font-size:14px;color:{THEME["text_muted"]}">home-loan enquiries · '
+        f'{inbox["conversation_ref"].nunique()} customers</span></div>'
+        f'<div style="font-size:15px;color:{THEME["text"]};margin-top:6px">'
+        f'💡 <b>{top_pct}% are “{_topic_label(top_topic)}” enquiries</b> — the single '
+        f'biggest thing customers reach out about. Answer it loudly and you cut '
+        f'repetitive questions at the source.</div></div>'
+    )
+
     qmap = get_question_map()
-    if qmap and qmap.get("topics"):
-        st.subheader("📋 Content backlog — the questions to answer")
-        st.caption("Each theme broken into the specific recurring questions "
-                   "customers ask. One question = one FAQ, post, or page section. "
-                   "The number is roughly how many customers asked it.")
-        topics = qmap["topics"]
-        # biggest theme (by total question volume) first, and expanded
-        ordered = sorted(topics.items(),
+    topics_map = (qmap or {}).get("topics", {})
+
+    # ── Content backlog (hero), driven by a theme picker ─────────────────────
+    if topics_map:
+        st.markdown("##### 📋 Content backlog — pick a theme, get the questions to write")
+        ordered = sorted(topics_map.items(),
                          key=lambda kv: -sum(q.get("count", 0) for q in kv[1]))
-        for i, (topic, questions) in enumerate(ordered):
-            total = sum(q.get("count", 0) for q in questions)
-            with st.expander(f"{_topic_label(topic)} · {total} customers asked",
-                             expanded=(i == 0)):
-                for q in questions:
-                    ex = q.get("example", "")
-                    st.markdown(
-                        f"<div style='display:flex;gap:10px;align-items:baseline;"
-                        f"margin-bottom:6px'>"
-                        f"<span style='background:{THEME['primary_pale']};"
-                        f"color:{THEME['primary_dark']};font-weight:700;font-size:12px;"
-                        f"padding:1px 9px;border-radius:20px;min-width:34px;"
-                        f"text-align:center'>{q.get('count', 0)}</span>"
-                        f"<span><b>{q.get('question','')}</b>"
-                        + (f"<br><span style='color:#94A3B8;font-size:12px'>e.g. "
-                           f"“{ex}”</span>" if ex else "")
-                        + "</span></div>",
-                        unsafe_allow_html=True,
-                    )
+        labels = [f"{_topic_label(t)} · {sum(q.get('count', 0) for q in qs)}"
+                  for t, qs in ordered]
+        keys = [t for t, _ in ordered]
+        choice = st.radio("Theme", labels, horizontal=True, label_visibility="collapsed")
+        sel = keys[labels.index(choice)]
 
-        st.divider()
-
-    # ── Top themes (grouped + ranked, with examples) ─────────────────────────
-    st.subheader("📊 Top themes — what customers keep asking")
-    tc = inbox["topic"].value_counts().reset_index()
-    tc.columns = ["topic", "Count"]
-    tc["Theme"] = tc["topic"].map(_topic_label)
-    fig = px.bar(tc, x="Count", y="Theme", orientation="h", height=300,
-                 color_discrete_sequence=[THEME["primary"]])
-    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), yaxis_title=None,
-                      xaxis_title=None, yaxis=dict(autorange="reversed"))
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.caption("Open a theme to read the actual customer messages in it.")
-    for topic in tc["topic"]:
-        sub = inbox[inbox["topic"] == topic]
-        with st.expander(f"{_topic_label(topic)} · {len(sub)} messages"):
-            for _, r in sub.head(10).iterrows():
-                en = (r.get("summary_en") or "").strip()
+        st.caption("Each row is one specific question — a ready FAQ, post, or page "
+                   "section. Click **Draft** to get starter copy in KBank's voice.")
+        for idx, q in enumerate(topics_map[sel]):
+            ex = q.get("example", "")
+            c_q, c_b = st.columns([0.82, 0.18])
+            with c_q:
                 st.markdown(
-                    f"**🇬🇧 {en}**  \n"
-                    f"🇻🇳 {r['message']}  \n"
-                    f"<span style='color:#94A3B8;font-size:11px'>{r['conversation_ref']} · "
-                    f"{r['sent_at'][:10]}</span>",
+                    f"<div style='display:flex;gap:10px;align-items:baseline'>"
+                    f"<span style='background:{THEME['primary_pale']};"
+                    f"color:{THEME['primary_dark']};font-weight:700;font-size:12px;"
+                    f"padding:1px 9px;border-radius:20px;min-width:34px;"
+                    f"text-align:center'>{q.get('count', 0)}</span>"
+                    f"<span><b>{q.get('question','')}</b>"
+                    + (f"<br><span style='color:#94A3B8;font-size:12px'>e.g. "
+                       f"“{ex}”</span>" if ex else "")
+                    + "</span></div>",
                     unsafe_allow_html=True,
                 )
+            with c_b:
+                if st.button("✍️ Draft", key=f"draft_{sel}_{idx}", use_container_width=True):
+                    with st.spinner("Writing starter copy…"):
+                        try:
+                            st.session_state[f"draftout_{sel}_{idx}"] = \
+                                draft_for_question(q.get("question", ""), _topic_label(sel))
+                        except Exception as exc:
+                            st.session_state[f"draftout_{sel}_{idx}"] = f"_Couldn't draft: {exc}_"
+            out = st.session_state.get(f"draftout_{sel}_{idx}")
+            if out:
+                with st.container(border=True):
+                    st.markdown(out)
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    else:
+        st.info("Click **✨ Refresh insight** above to mine the content backlog — "
+                "the specific questions customers keep asking.")
 
     st.divider()
 
-    # ── Theme trend over time ────────────────────────────────────────────────
-    st.subheader("📈 Themes over time")
-    tr = inbox.groupby(["month", "topic"]).size().reset_index(name="Count")
-    tr["Theme"] = tr["topic"].map(_topic_label)
-    fig = px.bar(tr, x="month", y="Count", color="Theme", barmode="stack", height=300)
-    fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), xaxis_title=None,
-                      yaxis_title=None, legend=dict(orientation="h", y=-0.25, title=None))
-    st.plotly_chart(fig, use_container_width=True)
+    # ── Everything else, tucked into collapsed rows ──────────────────────────
+    brief = get_latest_inbox_insight()
+    if brief:
+        with st.expander("📄 AI insight brief — topics, concerns, communication ideas"):
+            st.markdown(brief)
 
-    # ── All messages (raw, masked) — tucked away ─────────────────────────────
-    with st.expander(f"💬 All {len(inbox)} messages (raw, English + masked Vietnamese)"):
+    with st.expander("📊 Themes overview & trend"):
+        tc = inbox["topic"].value_counts().reset_index()
+        tc.columns = ["topic", "Count"]
+        tc["Theme"] = tc["topic"].map(_topic_label)
+        fig = px.bar(tc, x="Count", y="Theme", orientation="h", height=280,
+                     color_discrete_sequence=[THEME["primary"]])
+        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), yaxis_title=None,
+                          xaxis_title=None, yaxis=dict(autorange="reversed"))
+        st.plotly_chart(fig, use_container_width=True)
+        tr = inbox.groupby(["month", "topic"]).size().reset_index(name="Count")
+        tr["Theme"] = tr["topic"].map(_topic_label)
+        fig = px.bar(tr, x="month", y="Count", color="Theme", barmode="stack", height=280)
+        fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), xaxis_title=None,
+                          yaxis_title=None, legend=dict(orientation="h", y=-0.3, title=None))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander(f"💬 All {len(inbox)} raw messages (English + masked Vietnamese)"):
         for _, r in inbox.head(80).iterrows():
             en = (r.get("summary_en") or "").strip()
             st.markdown(
