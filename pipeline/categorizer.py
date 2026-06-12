@@ -221,7 +221,10 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
     min_len    = (min_len_override if min_len_override is not None
                   else cfg.get("categorizer", {}).get("min_content_length", 20))
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    # max_retries=0: the SDK retries internally by default, which would stack
+    # with _call_with_retry's 3-attempt/2s/4s policy (up to 9 HTTP attempts).
+    # Disable the SDK layer so our retry policy is the only one.
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], max_retries=0)
 
     total_categorized = 0
     after = 0   # id cursor — advances past failed batches so a bad batch
@@ -268,11 +271,16 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
             # defers it to the next run — same treatment as a failed batch.
             after = batch[-1]["id"]
 
-        except json.JSONDecodeError as exc:
-            # Claude occasionally returns half-truncated JSON. Skip PAST this
-            # batch (cursor) so the rest of the day's items still get labeled;
-            # the skipped rows stay NULL and are retried on the next run.
-            logger.error("Failed to parse JSON response for batch (skipping past it): %s", exc)
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+            # Claude occasionally returns half-truncated JSON (JSONDecodeError)
+            # or parseable-but-wrong-shape JSON — e.g. a dict {"results": [...]}
+            # instead of a list, or items missing "id" (KeyError/TypeError/
+            # AttributeError). Skip PAST this batch (cursor) so the rest of the
+            # day's items still get labeled; the skipped rows stay NULL and are
+            # retried on the next run. NOTE: a KeyError from _update_batch (DB
+            # layer) is also caught here — the log line ensures nothing disappears
+            # silently (trade-off approved in review).
+            logger.error("Failed to parse/validate JSON response for batch (skipping past it): %s", exc)
             after = batch[-1]["id"]
             continue
         except anthropic.AuthenticationError as exc:

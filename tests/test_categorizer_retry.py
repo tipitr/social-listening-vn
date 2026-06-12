@@ -124,3 +124,18 @@ def test_valid_but_incomplete_response_does_not_loop_forever(one_batch_db, no_sl
 
     assert total == 0
     assert client.messages.create.call_count == 1, "one batch, one call, then cursor moves on"
+
+
+def test_wrong_shape_json_skips_batch_instead_of_crashing(one_batch_db, no_sleep, monkeypatch):
+    """Valid JSON of the wrong shape (dict, items missing 'id') must skip the
+    batch — not raise out of _categorize and kill the run."""
+    client = MagicMock()
+    client.messages.create.return_value = _fake_response({"results": [{"id": 1}]})
+    monkeypatch.setattr("anthropic.Anthropic", lambda **k: client)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    from pipeline import categorizer
+    total = categorizer.run()   # crashed with AttributeError/KeyError before the fix
+
+    assert total == 0
+    assert client.messages.create.call_count == 1, "skip past the bad batch, don't crash or loop"
