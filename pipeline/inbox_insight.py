@@ -121,16 +121,24 @@ def generate_inbox_insight() -> str:
         logger.warning("Could not log inbox-insight usage: %s", exc)
 
     full = f"_Generated {now_iso()[:16].replace('T', ' ')} · {len(messages)} messages_\n\n{brief}"
+    # Persist to the shared DB (survives deploys, visible online) + a local file.
+    try:
+        db.save_report("inbox_insight", full)
+    except Exception as exc:
+        logger.warning("Could not save inbox insight to DB: %s", exc)
     try:
         REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
         REPORT_PATH.write_text(full, encoding="utf-8")
-    except Exception as exc:
-        logger.warning("Could not cache inbox insight: %s", exc)
+    except Exception:
+        pass
     return full
 
 
 def get_latest_inbox_insight() -> Optional[str]:
-    """Return the cached brief, or None if none generated yet."""
+    """Return the cached brief (DB first, then local file), or None."""
+    from_db = db.get_report("inbox_insight")
+    if from_db:
+        return from_db
     try:
         return REPORT_PATH.read_text(encoding="utf-8") if REPORT_PATH.exists() else None
     except Exception:

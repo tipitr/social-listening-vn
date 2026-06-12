@@ -249,6 +249,22 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
 );
 """
 
+_CREATE_REPORTS_SQLITE = """
+CREATE TABLE IF NOT EXISTS reports (
+    key        TEXT PRIMARY KEY,
+    content    TEXT,
+    updated_at TEXT NOT NULL
+);
+"""
+
+_CREATE_REPORTS_PG = """
+CREATE TABLE IF NOT EXISTS reports (
+    key        TEXT PRIMARY KEY,
+    content    TEXT,
+    updated_at TEXT NOT NULL
+);
+"""
+
 _CREATE_USAGE_LOG_SQLITE = """
 CREATE TABLE IF NOT EXISTS usage_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,10 +306,13 @@ def init_schema() -> None:
     usage_log_sql = _CREATE_USAGE_LOG_PG if IS_POSTGRES else _CREATE_USAGE_LOG_SQLITE
     inbox_sql     = _CREATE_INBOX_PG     if IS_POSTGRES else _CREATE_INBOX_SQLITE
 
+    reports_sql = _CREATE_REPORTS_PG if IS_POSTGRES else _CREATE_REPORTS_SQLITE
+
     with connect() as conn:
         conn.execute(articles_sql)
         conn.execute(usage_log_sql)
         conn.execute(inbox_sql)
+        conn.execute(reports_sql)
 
         if IS_POSTGRES:
             for col, dtype in _MIGRATION_COLS.items():
@@ -326,6 +345,34 @@ def init_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_inbox_sent_at "
             "ON inbox_messages(sent_at DESC)"
         )
+
+
+def save_report(key: str, content: str) -> None:
+    """Upsert a named artifact (e.g. inbox brief, question map) into the shared
+    DB so it persists across deploys and is visible to the online dashboard."""
+    from pipeline.timeutils import now_iso
+    sql = (
+        "INSERT INTO reports (key, content, updated_at) "
+        "VALUES (:key, :content, :updated_at) "
+        "ON CONFLICT (key) DO UPDATE SET "
+        "content = EXCLUDED.content, updated_at = EXCLUDED.updated_at"
+    )
+    with connect() as conn:
+        conn.execute(sql, {"key": key, "content": content, "updated_at": now_iso()})
+
+
+def get_report(key: str):
+    """Return the stored content for a key, or None."""
+    try:
+        with connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM reports WHERE key = :key", {"key": key}
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(row).get("content")
+    except Exception:
+        return None
 
 
 def backend_name() -> str:

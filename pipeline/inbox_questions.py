@@ -133,17 +133,29 @@ def generate_question_map() -> dict:
             result[topic] = questions
 
     payload = {"generated": now_iso(), "topics": result}
+    blob = json.dumps(payload, ensure_ascii=False)
+    # Persist to the shared DB (survives deploys, visible online) + a local file.
+    try:
+        db.save_report("inbox_questions", blob)
+    except Exception as exc:
+        logger.warning("Could not save question map to DB: %s", exc)
     try:
         QUESTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
         QUESTIONS_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                                   encoding="utf-8")
-    except Exception as exc:
-        logger.warning("Could not cache question map: %s", exc)
+    except Exception:
+        pass
     return payload
 
 
 def get_question_map() -> Optional[dict]:
-    """Return the cached question map, or None if not generated yet."""
+    """Return the cached question map (DB first, then local file), or None."""
+    from_db = db.get_report("inbox_questions")
+    if from_db:
+        try:
+            return json.loads(from_db)
+        except Exception:
+            pass
     try:
         if QUESTIONS_PATH.exists():
             return json.loads(QUESTIONS_PATH.read_text(encoding="utf-8"))
