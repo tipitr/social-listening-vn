@@ -35,6 +35,23 @@ def test_init_schema_adds_and_backfills_categorized_at(monkeypatch, tmp_path):
     assert dict(row)["categorized_at"] == "2026-01-01T00:00:00", \
         "already-labeled rows must be backfilled from created_at"
 
+    # Negative guard: an UNLABELED row (sentiment NULL) must NOT be stamped by
+    # the backfill — it still needs to go through the categorizer.
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO articles (source, title, url, scraped_at, created_at) "
+            "VALUES ('t', 'b', 'http://x/unlabeled', '2026-01-03T00:00:00', '2026-01-03T00:00:00')"
+        )
+
+    db.init_schema()   # re-run → backfill must leave the unlabeled row alone
+
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT categorized_at FROM articles WHERE url = 'http://x/unlabeled'"
+        ).fetchone()
+    assert dict(row)["categorized_at"] is None, \
+        "backfill must not stamp rows the categorizer still needs to fetch"
+
 
 def test_validate_stamps_categorized_at(monkeypatch):
     from pipeline import categorizer
@@ -48,3 +65,31 @@ def test_validate_stamps_categorized_at(monkeypatch):
                                              "sentiment": "neutral",
                                              "summary_vi": "a", "summary_en": "b"})
     assert out_inbox["categorized_at"], "_validate_inbox must stamp categorized_at"
+
+
+def test_update_article_sql_writes_categorized_at(monkeypatch, tmp_path):
+    db = _fresh_sqlite(monkeypatch, tmp_path)
+    db.init_schema()
+    with db.connect() as conn:
+        conn.execute(
+            "INSERT INTO articles (source, title, url, scraped_at, created_at) "
+            "VALUES ('t', 'a', 'http://x/2', '2026-01-02T00:00:00', '2026-01-02T00:00:00')"
+        )
+        row_id = conn.execute(
+            "SELECT id FROM articles WHERE url = 'http://x/2'"
+        ).fetchone()[0]
+
+    from pipeline import categorizer
+    validated = categorizer._validate({
+        "id": row_id, "sentiment": "positive", "category": "promotion",
+        "intent": "promotion", "summary_vi": "a", "summary_en": "b",
+    })
+    categorizer._update_batch(categorizer._UPDATE_ARTICLE, [validated])
+
+    with db.connect() as conn:
+        row = dict(conn.execute(
+            "SELECT sentiment, categorized_at FROM articles WHERE id = :id",
+            {"id": row_id},
+        ).fetchone())
+    assert row["sentiment"] == "positive"
+    assert row["categorized_at"], "the real UPDATE SQL must stamp categorized_at"

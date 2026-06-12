@@ -181,37 +181,39 @@ def read_sql_df(query: str, params: dict | None = None):
 
 _CREATE_ARTICLES_SQLITE = """
 CREATE TABLE IF NOT EXISTS articles (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    source      TEXT    NOT NULL,
-    source_url  TEXT,
-    title       TEXT    NOT NULL,
-    summary     TEXT,
-    url         TEXT    UNIQUE NOT NULL,
-    category    TEXT,
-    sentiment   TEXT,
-    intent      TEXT,
-    summary_vi  TEXT,
-    summary_en  TEXT,
-    scraped_at  TEXT    NOT NULL,
-    created_at  TEXT    NOT NULL
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    source         TEXT    NOT NULL,
+    source_url     TEXT,
+    title          TEXT    NOT NULL,
+    summary        TEXT,
+    url            TEXT    UNIQUE NOT NULL,
+    category       TEXT,
+    sentiment      TEXT,
+    intent         TEXT,
+    summary_vi     TEXT,
+    summary_en     TEXT,
+    categorized_at TEXT,
+    scraped_at     TEXT    NOT NULL,
+    created_at     TEXT    NOT NULL
 );
 """
 
 _CREATE_ARTICLES_PG = """
 CREATE TABLE IF NOT EXISTS articles (
-    id          BIGSERIAL PRIMARY KEY,
-    source      TEXT      NOT NULL,
-    source_url  TEXT,
-    title       TEXT      NOT NULL,
-    summary     TEXT,
-    url         TEXT      UNIQUE NOT NULL,
-    category    TEXT,
-    sentiment   TEXT,
-    intent      TEXT,
-    summary_vi  TEXT,
-    summary_en  TEXT,
-    scraped_at  TEXT      NOT NULL,
-    created_at  TEXT      NOT NULL
+    id              BIGSERIAL PRIMARY KEY,
+    source          TEXT      NOT NULL,
+    source_url      TEXT,
+    title           TEXT      NOT NULL,
+    summary         TEXT,
+    url             TEXT      UNIQUE NOT NULL,
+    category        TEXT,
+    sentiment       TEXT,
+    intent          TEXT,
+    summary_vi      TEXT,
+    summary_en      TEXT,
+    categorized_at  TEXT,
+    scraped_at      TEXT      NOT NULL,
+    created_at      TEXT      NOT NULL
 );
 """
 
@@ -227,6 +229,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
     intent           TEXT,
     summary_vi       TEXT,
     summary_en       TEXT,
+    categorized_at   TEXT,
     sent_at          TEXT    NOT NULL,
     created_at       TEXT    NOT NULL
 );
@@ -244,6 +247,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
     intent           TEXT,
     summary_vi       TEXT,
     summary_en       TEXT,
+    categorized_at   TEXT,
     sent_at          TEXT      NOT NULL,
     created_at       TEXT      NOT NULL
 );
