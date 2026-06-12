@@ -1957,10 +1957,29 @@ with tab_overview:
         'margin:0 0 18px">Composition · Drill into the shape of the conversation</div>'
     )
 
+    # ── "So what" takeaways — every chart leads with the conclusion ──────
+    def _takeaway(text: str, tone: str = "neutral") -> str:
+        color = {"good": "#22C55E", "bad": "#F87171", "neutral": "#94A3B8"}[tone]
+        return (f'<div style="font-family:\'IBM Plex Sans\',sans-serif;'
+                f'font-size:0.82rem;color:{color};margin:-6px 0 6px">{text}</div>')
+
+    _has_prev = not df_prev.empty
+
     c1, c2 = st.columns(2)
 
     with c1:
         st.subheader("Sentiment")
+        _neg_now = (df["sentiment"] == "negative").mean() * 100
+        if _has_prev:
+            _neg_prev = (df_prev["sentiment"] == "negative").mean() * 100
+            _pp = _neg_now - _neg_prev
+            _arrow = "▲" if _pp > 0 else ("▼" if _pp < 0 else "→")
+            _tone = "bad" if _pp > 2 else ("good" if _pp < -2 else "neutral")
+            st.html(_takeaway(
+                f"Negative voices: {_neg_now:.0f}% of the conversation "
+                f"({_arrow} {abs(_pp):.0f}pp vs previous {days}d)", _tone))
+        else:
+            st.html(_takeaway(f"Negative voices: {_neg_now:.0f}% of the conversation"))
         sd = df["sentiment"].value_counts().reset_index()
         sd.columns = ["Sentiment", "Count"]
         fig = px.pie(sd, names="Sentiment", values="Count",
@@ -1972,6 +1991,16 @@ with tab_overview:
 
     with c2:
         st.subheader("Category")
+        _comp_now = int((df["category"] == "complaint").sum())
+        if _has_prev:
+            _comp_prev = int((df_prev["category"] == "complaint").sum())
+            _diff = _comp_now - _comp_prev
+            _tone = "bad" if _diff > 0 else ("good" if _diff < 0 else "neutral")
+            _sign = "+" if _diff > 0 else ""
+            st.html(_takeaway(
+                f"Complaints: {_comp_now} this window ({_sign}{_diff} vs previous {days}d)", _tone))
+        else:
+            st.html(_takeaway(f"Complaints: {_comp_now} this window"))
         cd = df["category"].value_counts().reset_index()
         cd.columns = ["Category", "Count"]
         fig = px.bar(cd, x="Count", y="Category", orientation="h",
@@ -1984,6 +2013,10 @@ with tab_overview:
 
     with c3:
         st.subheader("Intent")
+        _seek_now = (df["intent"] == "seeking_info").mean() * 100
+        st.html(_takeaway(
+            f"{_seek_now:.0f}% of posts are people actively ASKING about loans "
+            f"— each one is a potential lead", "good" if _seek_now >= 30 else "neutral"))
         id_ = df["intent"].value_counts().reset_index()
         id_.columns = ["Intent", "Count"]
         id_["Intent"] = id_["Intent"].map(INTENT_LABEL).fillna(id_["Intent"])
