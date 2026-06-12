@@ -158,3 +158,15 @@ CATEGORY_CHIP: dict = {
 # changes again later.
 SENT_COLOR: dict[str, str] = THEME["sentiment"]
 CAT_COLOR:  dict[str, str] = {k: v["accent"] for k, v in THEME["category"].items()}
+
+# ── Plotly layout tokens ────────────────────────────────────────────────────
+# One margin + one legend position for every dashboard chart, so legends stop
+# drifting ±0.1 between charts. Charts spread these, then override only what
+# they genuinely need.
+CHART_LAYOUT: dict = {
+    "margin": {"t": 16, "b": 16, "l": 0, "r": 0},
+    "xaxis_title": None,
+    "yaxis_title": None,
+}
+
+CHART_LEGEND_H: dict = {"orientation": "h", "y": -0.25, "x": 0}

@@ -588,7 +588,7 @@ from pipeline.config_loader import load_keywords as _load_keywords_yaml  # noqa:
 from pipeline.timeutils import days_ago_iso, now_iso  # noqa: E402
 
 from dashboard.source_taxonomy import classify_source  # noqa: E402
-from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR, CATEGORY_CHIP  # noqa: E402
+from dashboard.theme import THEME, SENT_COLOR, CAT_COLOR, CATEGORY_CHIP, CHART_LAYOUT, CHART_LEGEND_H  # noqa: E402
 from dashboard.wordcloud_view import render_png as render_wordcloud_png  # noqa: E402
 
 # ── Plotly dark template (Bloomberg/terminal look) ───────────────────────────
@@ -1718,9 +1718,12 @@ with tab_action_feed:
             df_q["_band"] = df_q["_score"].apply(_band)
 
             _BAND_META = {
-                "URGENT":  ("Things that look bad. Triage first.",   "#EF4444"),
-                "WATCH":   ("Worth a glance — rate signals, competitor moves.", "#F59E0B"),
-                "ROUTINE": ("Background chatter — read if you have time.",      "#64748B"),
+                "URGENT":  ("Things that look bad. Triage first.",
+                            THEME["dark"]["danger"]),
+                "WATCH":   ("Worth a glance — rate signals, competitor moves.",
+                            THEME["dark"]["warning"]),
+                "ROUTINE": ("Background chatter — read if you have time.",
+                            THEME["dark"]["text_subtle"]),
             }
 
             for band_name in ("URGENT", "WATCH", "ROUTINE"):
@@ -2006,7 +2009,7 @@ with tab_overview:
                      color="Sentiment", color_discrete_map=SENT_COLOR,
                      hole=0.55, height=280)
         fig.update_traces(textposition="outside", textinfo="percent+label")
-        fig.update_layout(showlegend=False, margin=dict(t=20,b=0,l=0,r=0))
+        fig.update_layout(showlegend=False, **CHART_LAYOUT)
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
@@ -2025,8 +2028,7 @@ with tab_overview:
         cd.columns = ["Category", "Count"]
         fig = px.bar(cd, x="Count", y="Category", orientation="h",
                      color="Category", color_discrete_map=CAT_COLOR, height=280)
-        fig.update_layout(showlegend=False, margin=dict(t=20,b=0,l=0,r=0),
-                          yaxis_title=None, xaxis_title=None)
+        fig.update_layout(showlegend=False, **CHART_LAYOUT)
         st.plotly_chart(fig, use_container_width=True)
 
     c3, c4 = st.columns(2)
@@ -2042,8 +2044,7 @@ with tab_overview:
         id_["Intent"] = id_["Intent"].map(INTENT_LABEL).fillna(id_["Intent"])
         fig = px.bar(id_, x="Count", y="Intent", orientation="h", height=250,
                      color_discrete_sequence=[THEME["primary_light"]])
-        fig.update_layout(showlegend=False, margin=dict(t=20,b=0,l=0,r=0),
-                          yaxis_title=None, xaxis_title=None)
+        fig.update_layout(showlegend=False, **CHART_LAYOUT)
         st.plotly_chart(fig, use_container_width=True)
 
     with c4:
@@ -2052,9 +2053,7 @@ with tab_overview:
         fig = px.bar(ss, x="Count", y="source", color="sentiment",
                      color_discrete_map=SENT_COLOR, orientation="h",
                      barmode="stack", height=250)
-        fig.update_layout(margin=dict(t=20,b=0,l=0,r=0),
-                          yaxis_title=None, xaxis_title=None,
-                          legend=dict(orientation="h", y=-0.2))
+        fig.update_layout(legend=CHART_LEGEND_H, **CHART_LAYOUT)
         st.plotly_chart(fig, use_container_width=True)
 
     # ── Volume by Source Type ─────────────────────────────────────────────
@@ -2083,8 +2082,7 @@ with tab_overview:
         color="Source Type", color_discrete_map=SOURCE_TYPE_COLORS,
         height=160, text_auto=True,
     )
-    fig_st.update_layout(showlegend=False, margin=dict(t=10, b=0, l=0, r=0),
-                         yaxis_title=None, xaxis_title=None)
+    fig_st.update_layout(showlegend=False, **CHART_LAYOUT)
     st.plotly_chart(fig_st, use_container_width=True)
 
     # Volume by day
@@ -2103,10 +2101,9 @@ with tab_overview:
     )
     fig.update_traces(textfont_size=11)
     fig.update_layout(
-        margin=dict(t=10, b=10, l=0, r=0),
-        xaxis_title=None, yaxis_title=None,
         yaxis=dict(tickformat="d", dtick=1),
-        legend=dict(orientation="h", y=-0.25),
+        legend=CHART_LEGEND_H,
+        **CHART_LAYOUT,
     )
     # Spike callouts — label the peak day and the sharpest day-over-day rise
     # so the reader doesn't have to eyeball "what changed".
