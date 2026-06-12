@@ -1442,10 +1442,27 @@ with tab_action_feed:
         "neutral":  (None,                None),
     }
 
-    # Session-scoped dismissal: marking an item "Done" hides it for this
-    # browser session only. Keeps the queue actionable without needing a DB.
     if "dismissed_ids" not in st.session_state:
-        st.session_state["dismissed_ids"] = set()
+        # Dismissals are write-through to the shared reports table so "Done"
+        # survives a refresh — and teammates see the same triaged queue.
+        # Loaded once per session; other open sessions pick changes up on their next refresh.
+        try:
+            import json as _json
+            from pipeline.db import get_report as _get_report
+            _saved = _get_report("dismissed_article_ids")
+            st.session_state["dismissed_ids"] = set(_json.loads(_saved)) if _saved else set()
+        except Exception:
+            st.session_state["dismissed_ids"] = set()
+
+    def _persist_dismissed() -> None:
+        """Best-effort write-through; the dashboard must render even if it fails."""
+        try:
+            import json as _json
+            from pipeline.db import save_report as _save_report
+            ids = sorted(int(i) for i in st.session_state["dismissed_ids"])[-5000:]
+            _save_report("dismissed_article_ids", _json.dumps(ids))
+        except Exception:
+            pass
 
     def _priority_reasons(row) -> list[str]:
         """Reasons this item is in the action queue — uppercase mono codes."""
@@ -1675,11 +1692,13 @@ with tab_action_feed:
             ):
                 for _id in df_q["id"].tolist():
                     st.session_state["dismissed_ids"].add(_id)
+                _persist_dismissed()
                 st.rerun()
         with header_r:
             if dismissed_n:
                 if st.button(f"Restore {dismissed_n} dismissed", use_container_width=True):
                     st.session_state["dismissed_ids"] = set()
+                    _persist_dismissed()
                     st.rerun()
 
         if df_q.empty:
@@ -1727,6 +1746,7 @@ with tab_action_feed:
                     with b_left:
                         if st.button("Done", key=f"done_{row['id']}", use_container_width=True):
                             st.session_state["dismissed_ids"].add(row["id"])
+                            _persist_dismissed()
                             st.rerun()
 
 
