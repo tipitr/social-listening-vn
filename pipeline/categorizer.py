@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from pipeline import db
 from pipeline.collector import init_db, log_usage
 from pipeline.config_loader import load_settings
+from pipeline.timeutils import now_iso
 
 # override=True so an empty shell-exported ANTHROPIC_API_KEY (e.g. from a
 # stale ~/.zshrc export) doesn't shadow the real value in .env.
@@ -62,11 +63,12 @@ _FETCH_UNCATEGORIZED = """
 
 _UPDATE_ARTICLE = """
     UPDATE articles
-    SET sentiment  = :sentiment,
-        category   = :category,
-        intent     = :intent,
-        summary_vi = :summary_vi,
-        summary_en = :summary_en
+    SET sentiment      = :sentiment,
+        category       = :category,
+        intent         = :intent,
+        summary_vi     = :summary_vi,
+        summary_en     = :summary_en,
+        categorized_at = :categorized_at
     WHERE id = :id;
 """
 
@@ -83,10 +85,11 @@ _FETCH_UNCAT_INBOX = """
 
 _UPDATE_INBOX = """
     UPDATE inbox_messages
-    SET topic      = :topic,
-        sentiment  = :sentiment,
-        summary_vi = :summary_vi,
-        summary_en = :summary_en
+    SET topic          = :topic,
+        sentiment      = :sentiment,
+        summary_vi     = :summary_vi,
+        summary_en     = :summary_en,
+        categorized_at = :categorized_at
     WHERE id = :id;
 """
 
@@ -126,11 +129,12 @@ def _validate_inbox(item: dict) -> dict:
     valid_topics = set(_inbox_topics().keys())
     topic = item.get("topic")
     return {
-        "id":         item["id"],
-        "topic":      topic if topic in valid_topics else "other",
-        "sentiment":  item.get("sentiment") if item.get("sentiment") in _VALID_SENTIMENTS else "neutral",
-        "summary_vi": (item.get("summary_vi") or "")[:200],
-        "summary_en": (item.get("summary_en") or "")[:300],
+        "id":             item["id"],
+        "topic":          topic if topic in valid_topics else "other",
+        "sentiment":      item.get("sentiment") if item.get("sentiment") in _VALID_SENTIMENTS else "neutral",
+        "summary_vi":     (item.get("summary_vi") or "")[:200],
+        "summary_en":     (item.get("summary_en") or "")[:300],
+        "categorized_at": now_iso(),
     }
 
 
@@ -162,12 +166,13 @@ def _extract_json(text: str) -> list:
 def _validate(item: dict) -> dict:
     """Normalise a single result dict; fall back to 'general'/'neutral' if invalid."""
     return {
-        "id":         item["id"],
-        "sentiment":  item.get("sentiment")  if item.get("sentiment")  in _VALID_SENTIMENTS  else "neutral",
-        "category":   item.get("category")   if item.get("category")   in _VALID_CATEGORIES  else "general",
-        "intent":     item.get("intent")     if item.get("intent")     in _VALID_INTENTS     else "seeking_info",
-        "summary_vi": (item.get("summary_vi") or "")[:200],
-        "summary_en": (item.get("summary_en") or "")[:300],
+        "id":             item["id"],
+        "sentiment":      item.get("sentiment")  if item.get("sentiment")  in _VALID_SENTIMENTS  else "neutral",
+        "category":       item.get("category")   if item.get("category")   in _VALID_CATEGORIES  else "general",
+        "intent":         item.get("intent")     if item.get("intent")     in _VALID_INTENTS     else "seeking_info",
+        "summary_vi":     (item.get("summary_vi") or "")[:200],
+        "summary_en":     (item.get("summary_en") or "")[:300],
+        "categorized_at": now_iso(),
     }
 
 

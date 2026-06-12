@@ -293,10 +293,11 @@ CREATE TABLE IF NOT EXISTS usage_log (
 
 # Migration columns added after v1 — applied to existing DBs on each boot.
 _MIGRATION_COLS = {
-    "sentiment":  "TEXT",
-    "intent":     "TEXT",
-    "summary_vi": "TEXT",
-    "summary_en": "TEXT",
+    "sentiment":      "TEXT",
+    "intent":         "TEXT",
+    "summary_vi":     "TEXT",
+    "summary_en":     "TEXT",
+    "categorized_at": "TEXT",
 }
 
 
@@ -321,6 +322,7 @@ def init_schema() -> None:
                 )
             # inbox_messages gained `topic` after v1 — backfill the column.
             conn.execute("ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS topic TEXT")
+            conn.execute("ALTER TABLE inbox_messages ADD COLUMN IF NOT EXISTS categorized_at TEXT")
         else:
             existing = {row[1] for row in conn.execute("PRAGMA table_info(articles)").fetchall()}
             for col, dtype in _MIGRATION_COLS.items():
@@ -329,6 +331,22 @@ def init_schema() -> None:
             inbox_cols = {row[1] for row in conn.execute("PRAGMA table_info(inbox_messages)").fetchall()}
             if "topic" not in inbox_cols:
                 conn.execute("ALTER TABLE inbox_messages ADD COLUMN topic TEXT")
+            if "categorized_at" not in inbox_cols:
+                conn.execute("ALTER TABLE inbox_messages ADD COLUMN categorized_at TEXT")
+
+        # Backfill: rows labeled before the categorized_at column existed get
+        # stamped from created_at, so the next run doesn't re-pay Claude for
+        # the entire history.
+        conn.execute(
+            "UPDATE articles SET categorized_at = created_at "
+            "WHERE categorized_at IS NULL "
+            "  AND sentiment IS NOT NULL AND summary_en IS NOT NULL"
+        )
+        conn.execute(
+            "UPDATE inbox_messages SET categorized_at = created_at "
+            "WHERE categorized_at IS NULL "
+            "  AND topic IS NOT NULL AND summary_en IS NOT NULL"
+        )
 
         # Indexes — speed up the date-window scan that runs on every dashboard
         # page load, and the scrape-heartbeat lookup on the home page. The
