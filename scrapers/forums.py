@@ -2,15 +2,12 @@
 
 import logging
 import sys
-import time
 from pathlib import Path
-
-import requests
-from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.config_loader import load_keywords, load_settings, load_sources  # noqa: E402
 from pipeline.timeutils import now_iso  # noqa: E402
+from scrapers.fetch import get_soup as _shared_get_soup  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +45,7 @@ def _is_relevant(text, keywords, negatives):
 
 
 def _get_soup(url, delay):
-    time.sleep(delay)
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        resp.encoding = "utf-8"
-        resp.raise_for_status()
-        return BeautifulSoup(resp.text, "lxml")
-    except Exception as exc:
-        logger.warning("Failed to fetch %s: %s", url, exc)
-        return None
+    return _shared_get_soup(url, delay, headers=HEADERS)
 
 
 # ---------------------------------------------------------------------------

@@ -66,19 +66,33 @@ def _needs_firecrawl(status_code: int, text: str, soup: BeautifulSoup) -> Option
 # ── Transport layer ───────────────────────────────────────────────────────────
 
 def _fetch_plain(url: str, delay: float):
-    """Returns (soup, reason).  reason=None means plain fetch is usable."""
-    time.sleep(delay)
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-    except Exception as exc:
-        return None, f"request failed: {exc}"
+    """Returns (soup, reason).  reason=None means plain fetch is usable.
 
-    resp.encoding = "utf-8"
-    soup = BeautifulSoup(resp.text, "lxml")
-    reason = _needs_firecrawl(resp.status_code, resp.text, soup)
-    if reason:
-        return None, reason
-    return soup, None
+    Retries up to 3 times (2s/4s backoff) on transient network errors.
+    Bot/JS blocks are not retried — they're handed to Firecrawl immediately.
+    """
+    time.sleep(delay)
+    _MAX_ATTEMPTS = 3
+    last_exc: Optional[Exception] = None
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            resp.encoding = "utf-8"
+            soup = BeautifulSoup(resp.text, "lxml")
+            reason = _needs_firecrawl(resp.status_code, resp.text, soup)
+            if reason:
+                return None, reason
+            return soup, None
+        except Exception as exc:
+            last_exc = exc
+            if attempt < _MAX_ATTEMPTS - 1:
+                wait = 2 * (2 ** attempt)  # 2s, 4s
+                logger.info(
+                    "Fetch failed for %s (attempt %d/%d), retrying in %ds: %s",
+                    url, attempt + 1, _MAX_ATTEMPTS, wait, exc,
+                )
+                time.sleep(wait)
+    return None, f"request failed: {last_exc}"
 
 
 def _fetch_firecrawl(url: str):
