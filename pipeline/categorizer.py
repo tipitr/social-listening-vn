@@ -261,6 +261,13 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
             cost = (u.input_tokens / 1_000_000 * 3) + (u.output_tokens / 1_000_000 * 15)
             log_usage("claude_categorizer", MODEL, u.input_tokens, u.output_tokens, cost, saved)
 
+            # Advance past this batch even on success: the fetch is ORDER BY id,
+            # so every NULL row ≤ batch[-1]["id"] was IN this batch. If Claude's
+            # response omitted an item (valid JSON, missing ids), the unstamped
+            # row would otherwise be refetched forever within this run. Advancing
+            # defers it to the next run — same treatment as a failed batch.
+            after = batch[-1]["id"]
+
         except json.JSONDecodeError as exc:
             # Claude occasionally returns half-truncated JSON. Skip PAST this
             # batch (cursor) so the rest of the day's items still get labeled;

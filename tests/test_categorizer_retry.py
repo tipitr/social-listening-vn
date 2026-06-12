@@ -110,3 +110,17 @@ def test_persistently_failing_batch_does_not_loop_forever(one_batch_db, no_sleep
     # next fetch returns [] → loop ends.
     assert client.messages.create.call_count == 3
     assert one_batch_db["fetch_calls"][-1] >= 1, "cursor should advance past the failed batch"
+
+
+def test_valid_but_incomplete_response_does_not_loop_forever(one_batch_db, no_sleep, monkeypatch):
+    """Claude returns [] (valid JSON, zero items) — run() must still terminate."""
+    client = MagicMock()
+    client.messages.create.return_value = _fake_response([])
+    monkeypatch.setattr("anthropic.Anthropic", lambda **k: client)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    from pipeline import categorizer
+    total = categorizer.run()   # loops forever without the success-path cursor advance
+
+    assert total == 0
+    assert client.messages.create.call_count == 1, "one batch, one call, then cursor moves on"
