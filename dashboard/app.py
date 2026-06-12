@@ -887,6 +887,8 @@ with st.sidebar:
     if st.button("Refresh data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+    # Build tag — lets us confirm at a glance which version is live online.
+    st.caption("build · inbox v2 · themes + drafts")
 
 sel_src  = st.session_state["sel_src"]
 sel_sent = st.session_state["sel_sent"]
