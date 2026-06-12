@@ -143,3 +143,20 @@ def render_png(
     buf = io.BytesIO()
     wc.to_image().save(buf, format="PNG")
     return buf.getvalue()
+
+
+def top_phrases(
+    texts: Iterable[str],
+    home_loan_cfg: dict,
+    k: int = 6,
+) -> "list[tuple[str, int]]":
+    """Top recurring bigrams — powers the complaint-theme ranking.
+
+    Bigrams only (single words read as noise in a theme list), minimum two
+    occurrences (a theme is something people keep saying), same blocklist as
+    the word cloud so generic home-loan vocabulary never surfaces as a theme.
+    """
+    blocklist = _build_blocklist(home_loan_cfg)
+    freq = _extract_phrases(texts, blocklist)
+    bigrams = Counter({p: c for p, c in freq.items() if " " in p and c >= 2})
+    return bigrams.most_common(k)

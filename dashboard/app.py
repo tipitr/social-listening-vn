@@ -2115,6 +2115,50 @@ with tab_overview:
             )
     st.plotly_chart(fig, use_container_width=True)
 
+    # ── Top complaint themes ──────────────────────────────────────────────
+    # 15 separate complaint cards hide the fact that 12 of them say the same
+    # thing. Rank the recurring phrases so the #1 pain point is undeniable.
+    st.html(
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+        'color:#64748B;letter-spacing:0.08em;text-transform:uppercase;'
+        'margin:24px 0 8px">Pain points · What complaints keep repeating</div>'
+    )
+    _pain_df = df[(df["category"] == "complaint") | (df["sentiment"] == "negative")]
+    if _pain_df.empty:
+        _pain_texts = []
+    else:
+        _pain_texts = (
+            _pain_df["title"].fillna("") + " " +
+            _pain_df["summary_vi"].fillna("")
+        ).tolist()
+
+    from dashboard.wordcloud_view import top_phrases as _top_phrases
+    _themes = _top_phrases(_pain_texts, load_home_loan_cfg()) if _pain_texts else []
+
+    if not _themes:
+        st.caption("No recurring complaint themes in this window — nothing is "
+                   "repeating often enough to stand out. That's a good sign.")
+    else:
+        _max_c = _themes[0][1]
+        _rows = []
+        for _i, (_phrase, _count) in enumerate(_themes, start=1):
+            _w = max(8, int(_count / _max_c * 100))
+            _rows.append(
+                f'<div style="display:flex;align-items:center;gap:12px;margin:6px 0">'
+                f'  <span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.72rem;'
+                f'color:#64748B;width:22px">#{_i}</span>'
+                f'  <span style="font-family:\'IBM Plex Sans\',sans-serif;font-size:0.9rem;'
+                f'color:#F8FAFC;min-width:200px">{_phrase}</span>'
+                f'  <div style="flex:1;max-width:420px;background:#0F172A;border-radius:4px;height:10px">'
+                f'    <div style="width:{_w}%;background:rgba(239,68,68,0.55);height:10px;'
+                f'border-radius:4px"></div>'
+                f'  </div>'
+                f'  <span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;'
+                f'color:#94A3B8">{_count}×</span>'
+                f'</div>'
+            )
+        st.html('<div style="margin:0 0 8px">' + "".join(_rows) + "</div>")
+
     # ── Word cloud ────────────────────────────────────────────────────────
     st.html(
         '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
