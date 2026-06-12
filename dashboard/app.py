@@ -969,17 +969,31 @@ def render_inbox() -> None:
     inbox["month"] = inbox["sent_at"].str[:7]
     inbox["topic"] = inbox["topic"].fillna("other")
 
+    # ── Month filter — drives the hero, themes overview and raw messages ──────
+    months = sorted(inbox["month"].dropna().unique().tolist(), reverse=True)
+    mf_l, _mf_r = st.columns([1, 2])
+    with mf_l:
+        month_sel = st.selectbox("Month", ["All time"] + months,
+                                 help="Filter the stats, themes and raw messages "
+                                      "to one month. The content backlog below "
+                                      "always reflects all history.")
+    fdf = inbox if month_sel == "All time" else inbox[inbox["month"] == month_sel]
+    _span = "all time" if month_sel == "All time" else month_sel
+
     # ── Hero takeaway — lead with the story, not the charts ──────────────────
-    dist = inbox["topic"].value_counts()
+    if fdf.empty:
+        st.info(f"No home-loan enquiries in {month_sel}.")
+        return
+    dist = fdf["topic"].value_counts()
     top_topic = dist.index[0]
-    top_pct = round(dist.iloc[0] / len(inbox) * 100)
+    top_pct = round(dist.iloc[0] / len(fdf) * 100)
     st.html(
         f'<div style="background:{THEME["bg_alt"]};border-radius:14px;'
         f'padding:16px 20px;margin:6px 0 14px">'
         f'<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">'
-        f'<span style="font-size:26px;font-weight:700;color:{THEME["text"]}">{len(inbox)}</span>'
+        f'<span style="font-size:26px;font-weight:700;color:{THEME["text"]}">{len(fdf)}</span>'
         f'<span style="font-size:14px;color:{THEME["text_muted"]}">home-loan enquiries · '
-        f'{inbox["conversation_ref"].nunique()} customers</span></div>'
+        f'{fdf["conversation_ref"].nunique()} customers · {_span}</span></div>'
         f'<div style="font-size:15px;color:{THEME["text"]};margin-top:6px">'
         f'💡 <b>{top_pct}% are “{_topic_label(top_topic)}” enquiries</b> — the single '
         f'biggest thing customers reach out about. Answer it loudly and you cut '
@@ -990,8 +1004,12 @@ def render_inbox() -> None:
     topics_map = (qmap or {}).get("topics", {})
 
     # ── Content backlog (hero), driven by a theme picker ─────────────────────
+    # Kept on ALL history on purpose — it's a content plan mined from every
+    # enquiry, not a month-by-month view. The month filter above scopes the
+    # stats, themes overview and raw messages.
     if topics_map:
         st.markdown("##### 📋 Content backlog — pick a theme, get the questions to write")
+        st.caption("Mined from all enquiries (not affected by the month filter).")
         ordered = sorted(topics_map.items(),
                          key=lambda kv: -sum(q.get("count", 0) for q in kv[1]))
         labels = [f"{_topic_label(t)} · {sum(q.get('count', 0) for q in qs)}"
@@ -1043,8 +1061,8 @@ def render_inbox() -> None:
         with st.expander("📄 AI insight brief — topics, concerns, communication ideas"):
             st.markdown(brief)
 
-    with st.expander("📊 Themes overview & trend"):
-        tc = inbox["topic"].value_counts().reset_index()
+    with st.expander(f"📊 Themes overview & trend ({_span})"):
+        tc = fdf["topic"].value_counts().reset_index()
         tc.columns = ["topic", "Count"]
         tc["Theme"] = tc["topic"].map(_topic_label)
         fig = px.bar(tc, x="Count", y="Theme", orientation="h", height=280,
@@ -1052,6 +1070,7 @@ def render_inbox() -> None:
         fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), yaxis_title=None,
                           xaxis_title=None, yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig, use_container_width=True)
+        # Month-over-month trend always shows the full timeline for context.
         tr = inbox.groupby(["month", "topic"]).size().reset_index(name="Count")
         tr["Theme"] = tr["topic"].map(_topic_label)
         fig = px.bar(tr, x="month", y="Count", color="Theme", barmode="stack", height=280)
@@ -1059,8 +1078,19 @@ def render_inbox() -> None:
                           yaxis_title=None, legend=dict(orientation="h", y=-0.3, title=None))
         st.plotly_chart(fig, use_container_width=True)
 
-    with st.expander(f"💬 All {len(inbox)} raw messages (English + masked Vietnamese)"):
-        for _, r in inbox.head(80).iterrows():
+    with st.expander(f"💬 Raw messages ({_span}) — English + masked Vietnamese"):
+        # Category filter on the raw list — multiselect of the topics present.
+        present = [t for t in fdf["topic"].value_counts().index.tolist()]
+        cat_pick = st.multiselect(
+            "Filter by category",
+            options=present,
+            default=present,
+            format_func=_topic_label,
+            help="Show only messages in these enquiry categories.",
+        )
+        rdf = fdf[fdf["topic"].isin(cat_pick)] if cat_pick else fdf.iloc[0:0]
+        st.caption(f"Showing {min(len(rdf), 100)} of {len(rdf)} messages.")
+        for _, r in rdf.head(100).iterrows():
             en = (r.get("summary_en") or "").strip()
             st.markdown(
                 f"**🇬🇧 {en}** · _{_topic_label(r['topic'])}_  \n"
