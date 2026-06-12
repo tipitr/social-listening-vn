@@ -39,10 +39,10 @@ def patched_db(monkeypatch):
         "updated_ids": [],
     }
 
-    def fake_fetch(batch_size, min_len):
+    def fake_fetch(fetch_sql, batch_size, min_len, after):
         return state["batches"].pop(0)
 
-    def fake_update(results):
+    def fake_update(update_sql, results):
         state["updated_ids"].extend(r["id"] for r in results)
         return len(results)
 
@@ -101,7 +101,7 @@ def test_categorizer_continues_after_jsondecode_error(patched_db, monkeypatch):
 
 
 def test_categorizer_continues_after_api_error(patched_db, monkeypatch):
-    """Batch 1 raises a transient APIError (e.g. 529). Batch 2 should still process."""
+    """Batch 1 raises a persistent APIError (all 3 retries fail). Batch 2 should still process."""
     api_error = anthropic.APIError(
         message="Overloaded", request=MagicMock(), body=None,
     )
@@ -111,7 +111,9 @@ def test_categorizer_continues_after_api_error(patched_db, monkeypatch):
         "intent": "promotion", "summary_vi": "ưu đãi", "summary_en": "promo",
     }])
 
-    client = _mock_anthropic_client([api_error, good_response])
+    # 3 APIErrors exhaust the retries on batch 1; cursor advances to batch 2 which succeeds.
+    monkeypatch.setattr("pipeline.categorizer.time.sleep", lambda s: None)
+    client = _mock_anthropic_client([api_error, api_error, api_error, good_response])
     monkeypatch.setattr("anthropic.Anthropic", lambda **k: client)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 

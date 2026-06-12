@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -53,6 +54,7 @@ _FETCH_UNCATEGORIZED = """
     SELECT id, title, summary
     FROM articles
     WHERE (sentiment IS NULL OR summary_en IS NULL)
+      AND id > :after
       AND length(COALESCE(title, '') || COALESCE(summary, '')) >= :min_len
     ORDER BY id
     LIMIT :batch_size;
@@ -73,6 +75,7 @@ _FETCH_UNCAT_INBOX = """
     SELECT id, message
     FROM inbox_messages
     WHERE (topic IS NULL OR summary_en IS NULL)
+      AND id > :after
       AND length(COALESCE(message, '')) >= :min_len
     ORDER BY id
     LIMIT :batch_size;
@@ -131,11 +134,11 @@ def _validate_inbox(item: dict) -> dict:
     }
 
 
-def _fetch_batch(fetch_sql: str, batch_size: int, min_len: int) -> list[dict]:
+def _fetch_batch(fetch_sql: str, batch_size: int, min_len: int, after: int) -> list[dict]:
     with db.connect() as conn:
         rows = conn.execute(
             fetch_sql,
-            {"batch_size": batch_size, "min_len": min_len},
+            {"batch_size": batch_size, "min_len": min_len, "after": after},
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -176,6 +179,30 @@ def _build_user_message(items: list[dict]) -> str:
     )
 
 
+_MAX_ATTEMPTS = 3
+
+
+def _call_with_retry(client, **kwargs):
+    """Call Claude, retrying transient API errors with 2s/4s backoff.
+
+    AuthenticationError re-raises immediately (a bad key won't fix itself —
+    it's an APIError subclass, so it must be caught first). After the final
+    attempt the APIError propagates so the caller's skip-batch handling runs.
+    """
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            return client.messages.create(**kwargs)
+        except anthropic.AuthenticationError:
+            raise
+        except anthropic.APIError as exc:
+            if attempt == _MAX_ATTEMPTS - 1:
+                raise
+            wait = 2 * (2 ** attempt)   # 2s, 4s
+            logger.warning("Claude API error (attempt %d/%d), retrying in %ds: %s",
+                           attempt + 1, _MAX_ATTEMPTS, wait, exc)
+            time.sleep(wait)
+
+
 def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
                 system_prompt: str = SYSTEM_PROMPT, validate_fn=_validate,
                 min_len_override: Optional[int] = None) -> int:
@@ -197,18 +224,21 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     total_categorized = 0
+    after = 0   # id cursor — advances past failed batches so a bad batch
+                # can't be refetched forever within one run
 
     while True:
-        batch = _fetch_batch(fetch_sql, batch_size, min_len)
+        batch = _fetch_batch(fetch_sql, batch_size, min_len, after)
         if not batch:
             break
 
         logger.info("Processing batch of %d %s (ids %d–%d)",
                     len(batch), label, batch[0]["id"], batch[-1]["id"])
         try:
-            response = client.messages.create(
+            response = _call_with_retry(
+                client,
                 model=MODEL,
-                max_tokens=2048,
+                max_tokens=4096,
                 system=[
                     {
                         "type": "text",
@@ -232,19 +262,20 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
             log_usage("claude_categorizer", MODEL, u.input_tokens, u.output_tokens, cost, saved)
 
         except json.JSONDecodeError as exc:
-            # Transient — Claude occasionally returns half-truncated JSON.
-            # Skip this batch but keep processing the rest so a single bad
-            # response doesn't strand the day's items uncategorized.
-            logger.error("Failed to parse JSON response for batch (skipping): %s", exc)
+            # Claude occasionally returns half-truncated JSON. Skip PAST this
+            # batch (cursor) so the rest of the day's items still get labeled;
+            # the skipped rows stay NULL and are retried on the next run.
+            logger.error("Failed to parse JSON response for batch (skipping past it): %s", exc)
+            after = batch[-1]["id"]
             continue
         except anthropic.AuthenticationError as exc:
             # NOT transient — a bad key won't fix itself, no point looping.
             logger.error("Authentication failed — check ANTHROPIC_API_KEY: %s", exc)
             break
         except anthropic.APIError as exc:
-            # Transient — 529 (overloaded), 503, transient network. Same
-            # rationale: keep going. The next batch may well succeed.
-            logger.error("Claude API error for batch (skipping): %s", exc)
+            # Already retried 3x inside _call_with_retry. Move past the batch.
+            logger.error("Claude API error for batch after retries (skipping past it): %s", exc)
+            after = batch[-1]["id"]
             continue
 
     logger.info("Done. Total %s categorized this run: %d", label, total_categorized)
