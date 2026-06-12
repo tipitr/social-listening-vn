@@ -160,9 +160,21 @@ def collect_all() -> int:
     if os.getenv("FACEBOOK_ACCESS_TOKEN") or os.getenv("FACEBOOK_APP_ID"):
         from scrapers.facebook import scrape as scrape_facebook
         articles += scrape_facebook()
+    # RapidAPI competitor crawl is quota-limited (free plan = 100 requests/month),
+    # and checking 10 pages daily burns that in ~5 days. Gate it to at most WEEKLY
+    # so it stays inside the free allowance. (~10 pages × 2 calls × 4 runs ≈ 80/mo.)
     if os.getenv("RAPIDAPI_KEY"):
-        from scrapers.facebook_scraper3 import scrape as scrape_facebook_rapid
-        articles += scrape_facebook_rapid()
+        last_crawl = db.get_report("competitor_crawl_last_run")
+        if last_crawl is None or last_crawl < days_ago_iso(7):
+            from scrapers.facebook_scraper3 import scrape as scrape_facebook_rapid
+            articles += scrape_facebook_rapid()
+            try:
+                db.save_report("competitor_crawl_last_run", now_iso())
+            except Exception as exc:
+                logger.warning("Could not record competitor crawl time: %s", exc)
+        else:
+            logger.info("Competitor (RapidAPI) crawl skipped — ran within 7 days "
+                        "(staying under the free monthly quota)")
 
     inserted = save(articles)
 
