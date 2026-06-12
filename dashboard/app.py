@@ -2088,6 +2088,31 @@ with tab_overview:
         yaxis=dict(tickformat="d", dtick=1),
         legend=dict(orientation="h", y=-0.25),
     )
+    # Spike callouts — label the peak day and the sharpest day-over-day rise
+    # so the reader doesn't have to eyeball "what changed".
+    _daily_tot = (vol_df.groupby(vol_df["scraped_at"].dt.date).size()
+                  .sort_index())
+    if len(_daily_tot) >= 2:
+        _peak_day = _daily_tot.idxmax()
+        _peak_val = int(_daily_tot.max())
+        fig.add_annotation(
+            x=_peak_day.strftime("%d %b"), y=_peak_val,
+            text=f"Peak · {_peak_val}", showarrow=True, arrowhead=2,
+            arrowcolor="#22C55E", ax=0, ay=-28,
+            font=dict(size=11, color="#22C55E", family="IBM Plex Mono, monospace"),
+        )
+        _jumps = _daily_tot.diff()
+        _jump_day = _jumps.idxmax()
+        _jump_val = _jumps.max()
+        # Only call out a jump that is both meaningful (≥3) and not the peak
+        # we already labeled.
+        if pd.notna(_jump_val) and _jump_val >= 3 and _jump_day != _peak_day:
+            fig.add_annotation(
+                x=_jump_day.strftime("%d %b"), y=int(_daily_tot[_jump_day]),
+                text=f"+{int(_jump_val)} vs day before", showarrow=True, arrowhead=2,
+                arrowcolor="#F59E0B", ax=0, ay=-24,
+                font=dict(size=10, color="#F59E0B", family="IBM Plex Mono, monospace"),
+            )
     st.plotly_chart(fig, use_container_width=True)
 
     # ── Word cloud ────────────────────────────────────────────────────────
