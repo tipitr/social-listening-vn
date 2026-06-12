@@ -29,10 +29,10 @@ if __name__ == "__main__":
             # collect_all only categorizes when new rows landed — sweep up stragglers
             categorize()
     except Exception:
-        # Individual scraper failures are already swallowed inside collect_all;
-        # reaching here means the PIPELINE itself died (DB down, bad config).
-        # Exit non-zero so the GitHub Actions run shows a red ✗ instead of a
-        # green check over a silent failure.
+        # Scrapers swallow their own per-site errors; collect_all re-raises
+        # genuinely broken-pipeline cases (DB down, categorizer dead after
+        # inserts). Log the traceback in a structured line and exit non-zero
+        # so the GitHub Actions run shows a red ✗.
         logger.exception("Pipeline failed")
         sys.exit(1)
 

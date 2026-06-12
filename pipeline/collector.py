@@ -187,12 +187,14 @@ def collect_all() -> int:
         logger.warning("Could not log scrape_run heartbeat: %s", exc)
 
     # Always categorize immediately so articles are never stranded without labels
+    categorize_failed = False
     if inserted > 0:
         try:
             from pipeline.categorizer import run as categorize
             categorize()
         except Exception as exc:
             logger.error("Categorizer failed after collect: %s", exc)
+            categorize_failed = True
 
     # Facebook page inbox — private home-loan chats, masked + stored separately.
     # Self-contained try/except so an inbox hiccup never breaks the main scrape.
@@ -214,6 +216,13 @@ def collect_all() -> int:
                     logger.warning("Inbox insight refresh failed (continuing): %s", exc)
         except Exception as exc:
             logger.error("Inbox collection failed (continuing): %s", exc)
+
+    if categorize_failed:
+        # Articles are saved but unlabeled — surface it as a run failure so the
+        # GitHub Actions check goes red instead of green-over-silent-rot. The
+        # next run's categorize sweep will pick the rows up once the cause is
+        # fixed; raising here is about visibility, not data loss.
+        raise RuntimeError("Categorizer failed after collect — articles saved but unlabeled")
 
     return inserted
 
