@@ -11,7 +11,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Run the test suite first — a broken keyword filter or categorizer bug
+  # should fail HERE, not silently corrupt a day's data in production.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: pytest -q
+
   scrape:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
