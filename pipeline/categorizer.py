@@ -232,6 +232,7 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], max_retries=0)
 
     total_categorized = 0
+    failures = 0   # batches that genuinely failed (parse, API, auth)
     after = 0   # id cursor — advances past failed batches so a bad batch
                 # can't be refetched forever within one run
 
@@ -286,17 +287,30 @@ def _categorize(fetch_sql: str, update_sql: str, to_item, label: str,
             # layer) is also caught here — the log line ensures nothing disappears
             # silently (trade-off approved in review).
             logger.error("Failed to parse/validate JSON response for batch (skipping past it): %s", exc)
+            failures += 1
             after = batch[-1]["id"]
             continue
         except anthropic.AuthenticationError as exc:
             # NOT transient — a bad key won't fix itself, no point looping.
             logger.error("Authentication failed — check ANTHROPIC_API_KEY: %s", exc)
+            failures += 1
             break
         except anthropic.APIError as exc:
             # Already retried 3x inside _call_with_retry. Move past the batch.
             logger.error("Claude API error for batch after retries (skipping past it): %s", exc)
+            failures += 1
             after = batch[-1]["id"]
             continue
+
+    if total_categorized == 0 and failures > 0:
+        # Nothing got labeled and at least one batch genuinely failed — a dead
+        # API key or full outage must turn the run red, not exit green with a
+        # whole day unlabeled. (Partial progress returns normally; the NULL
+        # rows are swept on the next run.)
+        raise RuntimeError(
+            f"Categorization made no progress: 0 {label} labeled, "
+            f"{failures} failed batch(es)"
+        )
 
     logger.info("Done. Total %s categorized this run: %d", label, total_categorized)
     return total_categorized

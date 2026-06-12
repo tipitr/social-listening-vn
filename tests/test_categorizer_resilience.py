@@ -136,9 +136,10 @@ def test_categorizer_stops_on_authentication_error(patched_db, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "bad-key")
 
     from pipeline import categorizer
-    total = categorizer.run()
+    # Zero progress + an auth failure → the run must end red, not green.
+    with pytest.raises(RuntimeError, match="no progress"):
+        categorizer.run()
 
-    assert total == 0
     # Critical: client.messages.create should have been called exactly ONCE
     # (we broke out of the loop after AuthError, didn't try batch 2).
     assert client.messages.create.call_count == 1, (

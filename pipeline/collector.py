@@ -198,6 +198,8 @@ def collect_all() -> int:
 
     # Facebook page inbox — private home-loan chats, masked + stored separately.
     # Self-contained try/except so an inbox hiccup never breaks the main scrape.
+    # Intentional asymmetry: run_inbox raising (even zero-progress) stays
+    # non-fatal here, unlike the article categorize_failed gate above.
     if os.getenv("FACEBOOK_ACCESS_TOKEN"):
         try:
             from scrapers.facebook_inbox import scrape as scrape_inbox

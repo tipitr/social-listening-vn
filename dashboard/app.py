@@ -142,15 +142,6 @@ st.html(
       @media (max-width: 1100px) {
         .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
-      @media (max-width: 768px) {
-        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-        .kpi-spark { display: none; }     /* sparklines are unreadable this small */
-        .kpi-tile { min-height: 64px; padding: 10px 12px; }
-        .kpi-value { font-size: 1.45rem; }
-      }
-      @media (max-width: 480px) {
-        .kpi-grid { grid-template-columns: 1fr; }
-      }
       .kpi-tile {
         background: linear-gradient(180deg, #0F172A 0%, #0A1124 100%);
         border: 1px solid #1E293B;
@@ -205,6 +196,15 @@ st.html(
         opacity: 0.95;
       }
       .kpi-tile:hover .kpi-spark { opacity: 1; }
+      @media (max-width: 768px) {
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .kpi-spark { display: none; }     /* sparklines are unreadable this small */
+        .kpi-tile { min-height: 64px; padding: 10px 12px; }
+        .kpi-value { font-size: 1.45rem; }
+      }
+      @media (max-width: 480px) {
+        .kpi-grid { grid-template-columns: 1fr; }
+      }
 
       /* ── Section header in Daily Brief (Urgent / Watch / Routine) ──── */
       .section-band {

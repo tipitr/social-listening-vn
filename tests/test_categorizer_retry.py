@@ -86,9 +86,10 @@ def test_auth_error_is_never_retried(one_batch_db, no_sleep, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "bad-key")
 
     from pipeline import categorizer
-    total = categorizer.run()
+    # Zero progress + a genuine failure (dead key) must turn the run red.
+    with pytest.raises(RuntimeError, match="no progress"):
+        categorizer.run()
 
-    assert total == 0
     assert client.messages.create.call_count == 1, "auth errors must not retry"
     assert no_sleep == []
 
@@ -103,11 +104,13 @@ def test_persistently_failing_batch_does_not_loop_forever(one_batch_db, no_sleep
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
     from pipeline import categorizer
-    total = categorizer.run()   # would hang forever before the fix
+    # Would hang forever before the cursor fix; now it terminates — and since
+    # nothing got labeled while a batch genuinely failed, the run must go red.
+    with pytest.raises(RuntimeError, match="no progress"):
+        categorizer.run()
 
-    assert total == 0
-    # 3 attempts on the one batch, then the cursor moves past id=1 and the
-    # next fetch returns [] → loop ends.
+    # 3 attempts on the one batch, then the cursor moves past id=1, the next
+    # fetch returns [] → loop ends → the zero-progress raise fires.
     assert client.messages.create.call_count == 3
     assert one_batch_db["fetch_calls"][-1] >= 1, "cursor should advance past the failed batch"
 
@@ -135,7 +138,9 @@ def test_wrong_shape_json_skips_batch_instead_of_crashing(one_batch_db, no_sleep
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
     from pipeline import categorizer
-    total = categorizer.run()   # crashed with AttributeError/KeyError before the fix
+    # Crashed with AttributeError/KeyError before the skip fix; the only batch
+    # failing with zero progress must now surface as a RuntimeError at the end.
+    with pytest.raises(RuntimeError, match="no progress"):
+        categorizer.run()
 
-    assert total == 0
     assert client.messages.create.call_count == 1, "skip past the bad batch, don't crash or loop"
