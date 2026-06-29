@@ -204,6 +204,7 @@ def collect_all() -> int:
         try:
             from scrapers.facebook_inbox import scrape as scrape_inbox
             new_msgs = save_messages(scrape_inbox())
+            log_usage("inbox_scrape_run", items_processed=new_msgs)
             if new_msgs > 0:
                 from pipeline.categorizer import run_inbox
                 run_inbox()

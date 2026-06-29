@@ -802,9 +802,11 @@ def _inbox_freshness_badge() -> str:
         )
 
     try:
-        df = db.read_sql_df("SELECT MAX(sent_at) AS last FROM inbox_messages")
+        df = db.read_sql_df(
+            "SELECT MAX(created_at) AS last FROM usage_log WHERE service = 'inbox_scrape_run'"
+        )
         if df.empty or df.iloc[0]["last"] is None:
-            return _pill("#F59E0B", "Inbox: no messages yet")
+            return _pill("#F59E0B", "Inbox: not yet recorded · first run 07:00 ICT")
         last_iso = str(df.iloc[0]["last"])
         last_dt = datetime.fromisoformat(last_iso.replace("Z", ""))
     except Exception:
@@ -818,7 +820,7 @@ def _inbox_freshness_badge() -> str:
     elif hours < 49:
         return _pill("#F59E0B", f"Inbox stale · {int(hours)}h ago")
     else:
-        return _pill("#EF4444", f"Inbox · {int(hours / 24)}d ago")
+        return _pill("#EF4444", f"Inbox broken · {int(hours / 24)}d ago")
 
 
 @st.cache_data(ttl=300, show_spinner=False)
