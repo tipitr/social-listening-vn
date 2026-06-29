@@ -786,6 +786,41 @@ def _scrape_health_badge() -> str:
         return _pill("#EF4444", f"Scrape broken · {int(hours/24)}d ago")
 
 
+def _inbox_freshness_badge() -> str:
+    """HTML badge showing how long ago the latest inbox message was fetched."""
+    from datetime import datetime
+    from pipeline.timeutils import LOCAL_TZ
+
+    def _pill(dot_color: str, label: str) -> str:
+        return (
+            f'<span style="display:inline-flex;align-items:center;gap:6px;'
+            f'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;'
+            f'font-weight:500;color:#94A3B8;text-transform:uppercase;'
+            f'letter-spacing:0.08em">'
+            f'<span style="width:7px;height:7px;border-radius:50%;background:{dot_color};'
+            f'box-shadow:0 0 8px {dot_color};display:inline-block"></span>{label}</span>'
+        )
+
+    try:
+        df = db.read_sql_df("SELECT MAX(sent_at) AS last FROM inbox_messages")
+        if df.empty or df.iloc[0]["last"] is None:
+            return _pill("#F59E0B", "Inbox: no messages yet")
+        last_iso = str(df.iloc[0]["last"])
+        last_dt = datetime.fromisoformat(last_iso.replace("Z", ""))
+    except Exception:
+        return ""
+
+    now = datetime.now(LOCAL_TZ).replace(tzinfo=None)
+    hours = (now - last_dt).total_seconds() / 3600
+
+    if hours < 25:
+        return _pill("#22C55E", f"Inbox OK · {int(max(hours, 0))}h ago")
+    elif hours < 49:
+        return _pill("#F59E0B", f"Inbox stale · {int(hours)}h ago")
+    else:
+        return _pill("#EF4444", f"Inbox · {int(hours / 24)}d ago")
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _wordcloud_bytes(texts_tuple: tuple) -> bytes | None:
     """Cached wordcloud render. texts_tuple is hashable (tuple of strings)."""
@@ -949,6 +984,7 @@ def render_inbox() -> None:
     with head_r:
         refresh = st.button("✨ Refresh insight", use_container_width=True,
                             help="Re-read the inbox: brief + content backlog")
+    st.markdown(_inbox_freshness_badge(), unsafe_allow_html=True)
     st.caption("Private 1:1 home-loan messages from KBank's own customers — a source "
                "for designing communication. Personal info masked; page replies excluded.")
     if refresh:
